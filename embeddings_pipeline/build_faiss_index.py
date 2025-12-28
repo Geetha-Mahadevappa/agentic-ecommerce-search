@@ -15,15 +15,14 @@ from pathlib import Path
 import faiss
 import numpy as np
 import yaml
+import logging
 
 from logging_config import setup_logging
 setup_logging("logs/embeddings.log")
-
-import logging
 logger = logging.getLogger(__name__)
 
 class FaissIndexBuilder:
-    def __init__(self, config_path="configs/config_agents.yaml"):
+    def __init__(self, config_path: Path = Path("configs/config_agents.yaml")):
         """
         Build a FAISS index from a precomputed embedding matrix.
 
@@ -34,34 +33,15 @@ class FaissIndexBuilder:
         self.config = self._load_config(config_path)
         self.paths = self.config["paths"]
 
-    def _load_config(self, path):
-        """
-        Load the agent configuration YAML file.
-
-        Parameters
-        ----------
-        path : Path
-            Path to the YAML config file.
-
-        Returns
-        -------
-        dict
-            Parsed configuration dictionary.
-        """
+    def _load_config(self, path: Path) -> dict:
+        """Load the agent configuration YAML file."""
         if not path.exists():
             raise FileNotFoundError(f"Config file not found: {path}")
         with open(path, "r") as f:
             return yaml.safe_load(f)
 
-    def load_embeddings(self):
-        """
-        Load the embedding matrix from the .npz file.
-
-        Returns
-        -------
-        np.ndarray
-            A 2D NumPy array of shape (n_vectors, dim) containing the embeddings.
-        """
+    def load_embeddings(self) -> np.ndarry:
+        """Load the embedding matrix from .npz file."""
         npz_path = Path(self.paths["embeddings_npz"])
         if not npz_path.exists():
             raise FileNotFoundError(f"Embeddings file not found: {npz_path}")
@@ -70,20 +50,8 @@ class FaissIndexBuilder:
         arr = np.load(npz_path)
         return arr["embeddings"]
 
-    def build_index(self, embeddings):
-        """
-        Build an HNSW FAISS index from the embedding matrix.
-
-        Parameters
-        ----------
-        embeddings : np.ndarray
-            A 2D array of shape (n_vectors, dim) containing the embeddings.
-
-        Returns
-        -------
-        faiss.Index
-            A FAISS HNSW index populated with the provided vectors.
-        """
+    def build_index(self, embeddings: np.ndarray) -> faiss.Index:
+        """Build an HNSW FAISS index from the embedding matrix."""
         dim = embeddings.shape[1]
         logger.info("Building FAISS index: dim=%d, n_vectors=%d", dim, embeddings.shape[0])
 
@@ -92,19 +60,11 @@ class FaissIndexBuilder:
         index.add(embeddings)
         return index
 
-    def verify_index(self, index, embeddings):
+    def verify_index(self, index: faiss.Index, embeddings: np.ndarray) -> None:
         """
         Verify that the FAISS index is valid before saving it.
         We confirm that dimensions match, the index contains the expected
         number of vectors, and that a basic nearest‑neighbor search works.
-
-        Parameters
-        ----------
-        index : faiss.Index
-            The in‑memory FAISS index that was just built.
-        embeddings : np.ndarray
-            The full embedding matrix used to populate the index. Expected
-            shape is (n_vectors, dim).
         """
         logger.info("Verifying FAISS index...")
 
@@ -123,15 +83,8 @@ class FaissIndexBuilder:
 
         logger.info("FAISS index verification passed")
 
-    def write_index(self, index):
-        """
-        Write the FAISS index to disk.
-
-        Parameters
-        ----------
-        index : faiss.Index
-            The FAISS index object to be serialized.
-        """
+    def write_index(self, index: faiss.Index) -> None:
+        """Write the FAISS index to disk."""
         index_path = Path(self.paths["faiss_index"])
         index_path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -144,7 +97,6 @@ class FaissIndexBuilder:
         index = self.build_index(embeddings)
         self.verify_index(index, embeddings)
         self.write_index(index)
-
 
 if __name__ == "__main__":
     builder = FaissIndexBuilder(Path("configs/config_agents.yaml"))

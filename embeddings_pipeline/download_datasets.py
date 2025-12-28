@@ -14,25 +14,12 @@ from pathlib import Path
 import kagglehub
 
 from logging_config import setup_logging
-
-# Use the shared logging configuration so logs go to embeddings.log
 setup_logging("logs/embeddings.log")
 logger = logging.getLogger(__name__)
 
 
-def download_and_copy(target_dir: Path,
-                          dataset="pruthvirajgshitole/e-commerce-purchases-and-reviews"):
-    """
-    Download the Kaggle dataset and copy the CSV files into the given folder.
-
-    Parameters
-    ----------
-    target_dir : Path
-        Where the CSV files should be placed.
-
-    dataset : str
-        Kaggle dataset identifier.
-    """
+def download_and_copy(target_dir: Path, dataset: str="pruthvirajgshitole/e-commerce-purchases-and-reviews") -> None:
+    """Download the Kaggle dataset and copy the CSV files into the given folder."""
 
     target_dir.mkdir(parents=True, exist_ok=True)
 

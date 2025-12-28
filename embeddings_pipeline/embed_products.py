@@ -13,13 +13,14 @@ import json
 import time
 import logging
 from pathlib import Path
+from typing import Tuple
 
 import yaml
 import numpy as np
 import pandas as pd
 from tqdm import tqdm
 from sentence_transformers import SentenceTransformer
-from sqlalchemy import create_engine, MetaData, Table, Column, String, Integer, Float
+from sqlalchemy import create_engine, MetaData, Table, Column, String, Integer, Float, Engine
 
 from embeddings_pipeline.download_datasets import download_and_copy
 
@@ -31,42 +32,23 @@ logger = logging.getLogger(__name__)
 
 
 class EmbeddingPipeline:
-    def __init__(self, config_path="configs/config_embedding.yaml"):
+    def __init__(self, config_path: Path = Path("configs/config_embedding.yaml")):
         """Runs the full embedding workflow."""
         self.cfg = self._load_config(config_path)
         self.paths = self.cfg["paths"]
         self.model_cfg = self.cfg["model"]
         self.embed_cfg = self.cfg["embedding"]
 
-    def _load_config(self, path):
-        """
-        Read and parse the YAML config file.
-
-        Parameters
-        ----------
-        path : str
-            Path to the config file.
-
-        Returns
-        -------
-        dict
-            Parsed configuration dictionary.
-        """
+    def _load_config(self, path: str) -> dict:
+        """Load the embedding configuration YAML file."""
         cfg_path = Path(path)
         if not cfg_path.exists():
             raise FileNotFoundError(f"Config file not found: {path}")
         with open(cfg_path, "r") as f:
             return yaml.safe_load(f)
 
-    def ensure_raw_data(self):
-        """
-        Make sure raw CSV files exist. Download them if missing.
-
-        Returns
-        -------
-        tuple[Path, Path]
-            Paths to purchase CSV and review CSV.
-        """
+    def ensure_raw_data(self) -> tuple[Path, Path]:
+        """Make sure raw product CSV files exist. Download them if missing."""
         raw_dir = Path(self.paths["raw_dir"])
         raw_dir.mkdir(parents=True, exist_ok=True)
 
@@ -84,20 +66,8 @@ class EmbeddingPipeline:
             raise FileNotFoundError("Dataset download finished but CSV files missing.")
         return purchase_csv, reviews_csv
 
-    def chunk_text(self, text):
-        """
-        Split text into overlapping word chunks.
-
-        Parameters
-        ----------
-        text : str
-            Input text to be chunked.
-
-        Returns
-        -------
-        list[str]
-            List of text chunks.
-        """
+    def chunk_text(self, text: str) -> list[str]:
+        """Split text into overlapping word chunks."""
         max_words = self.embed_cfg["chunk_words"]
         overlap = self.embed_cfg["chunk_overlap"]
 
@@ -116,40 +86,16 @@ class EmbeddingPipeline:
             i += max_words - overlap
         return chunks
 
-    def manifest_matches(self, manifest_path):
-        """
-        Check if existing embeddings match the current model version.
-
-        Parameters
-        ----------
-        manifest_path : Path
-            Path to the manifest JSON file.
-
-        Returns
-        -------
-        bool
-            True if versions match, False otherwise.
-        """
+    def manifest_matches(self, manifest_path: Path) -> bool:
+        """Check if existing embeddings match the current model version."""
         if not manifest_path.exists():
             return False
         with open(manifest_path) as f:
             data = json.load(f)
         return data.get("model_version") == self.model_cfg["version"]
 
-    def init_metadata_db(self, path):
-        """
-        Create the SQLite metadata table if it doesn't exist.
-
-        Parameters
-        ----------
-        path : Path
-            Path to the SQLite database file.
-
-        Returns
-        -------
-        tuple
-            (engine, table) SQLAlchemy engine and table object.
-        """
+    def init_metadata_db(self, path: Path) -> Tuple[Engine, Table]:
+        """Create the SQLite metadata table if it doesn't exist."""
         engine = create_engine(f"sqlite:///{path}")
         meta = MetaData()
 
@@ -169,7 +115,7 @@ class EmbeddingPipeline:
         meta.create_all(engine)
         return engine, table
 
-    def validate_embeddings(self, embeddings, chunk_texts):
+    def validate_embeddings(self, embeddings: np.ndarray, chunk_texts: list[str]) -> None:
         """
         Validate the embedding matrix before saving or building a FAISS index.
 
@@ -177,16 +123,6 @@ class EmbeddingPipeline:
         (e.g., partial batches, NaNs, wrong shape), it's better to stop the pipeline
         here than to silently produce a corrupted index. The user can simply rerun
         the pipeline after fixing the issue.
-
-        Parameters
-        ----------
-        embeddings : np.ndarray
-            The full 2D embedding matrix produced by the model. Each row should
-            correspond to one text chunk.
-
-        chunk_texts : list[str]
-            The list of text chunks that were fed into the embedding model. Used
-            to verify that the number of embeddings matches the number of chunks.
         """
 
         logger.info("Validating embedding matrix...")
@@ -209,21 +145,8 @@ class EmbeddingPipeline:
 
         logger.info(f"Embedding validation passed. Shape={embeddings.shape}, dtype={embeddings.dtype}")
 
-    def write_metadata(self, engine, table, rows):
-        """
-        Insert chunk metadata into the SQLite database.
-
-        Parameters
-        ----------
-        engine : sqlalchemy.Engine
-            Database engine.
-
-        table : sqlalchemy.Table
-            Metadata table.
-
-        rows : list[dict]
-            Metadata rows to insert.
-        """
+    def write_metadata(self, engine: Engine, table: Table, rows: list[dict]) -> None:
+        """Insert chunk metadata into the SQLite database."""
         with engine.begin() as conn:
             for r in rows:
                 conn.execute(table.insert().prefix_with("OR REPLACE"), r)
