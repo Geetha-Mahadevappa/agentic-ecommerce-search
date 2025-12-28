@@ -356,6 +356,6 @@ class EmbeddingPipeline:
 
 if __name__ == "__main__":
     try:
-        EmbeddingPipeline().run()
+        EmbeddingPipeline(Path("configs/config_embedding.yaml")).run()
     except Exception:
         logger.exception("Embedding pipeline failed")
