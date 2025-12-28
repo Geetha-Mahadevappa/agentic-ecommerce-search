@@ -17,7 +17,7 @@ from logging_config import setup_logging
 setup_logging("logs/embeddings.log")
 logger = logging.getLogger(__name__)
 
-def main(embedding_config, faiss_config):
+def main(embedding_config: str, faiss_config: str) -> None:
     # Embeddings
     try:
         EmbeddingPipeline(Path(embedding_config)).run()
