@@ -40,7 +40,7 @@ class FaissIndexBuilder:
         with open(path, "r") as f:
             return yaml.safe_load(f)
 
-    def load_embeddings(self) -> np.ndarry:
+    def load_embeddings(self) -> np.ndarray:
         """Load the embedding matrix from .npz file."""
         npz_path = Path(self.paths["embeddings_npz"])
         if not npz_path.exists():
