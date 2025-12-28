@@ -169,25 +169,6 @@ class EmbeddingPipeline:
         meta.create_all(engine)
         return engine, table
 
-    def write_metadata(self, engine, table, rows):
-        """
-        Insert chunk metadata into the SQLite database.
-
-        Parameters
-        ----------
-        engine : sqlalchemy.Engine
-            Database engine.
-
-        table : sqlalchemy.Table
-            Metadata table.
-
-        rows : list[dict]
-            Metadata rows to insert.
-        """
-        with engine.begin() as conn:
-            for r in rows:
-                conn.execute(table.insert().prefix_with("OR REPLACE"), r)
-
     def validate_embeddings(self, embeddings, chunk_texts):
         """
         Validate the embedding matrix before saving or building a FAISS index.
@@ -216,7 +197,8 @@ class EmbeddingPipeline:
 
         # Ensure we have one embedding per chunk
         if embeddings.shape[0] != len(chunk_texts):
-            raise ValueError(f"Embedding count mismatch: {embeddings.shape[0]} embeddings for {len(chunk_texts)} chunks")
+            raise ValueError(
+                f"Embedding count mismatch: {embeddings.shape[0]} embeddings for {len(chunk_texts)} chunks")
 
         # Check for NaNs or infinite values — both indicate a broken batch
         if np.isnan(embeddings).any():
@@ -226,6 +208,25 @@ class EmbeddingPipeline:
             raise ValueError("Embeddings contain non‑finite values")
 
         logger.info(f"Embedding validation passed. Shape={embeddings.shape}, dtype={embeddings.dtype}")
+
+    def write_metadata(self, engine, table, rows):
+        """
+        Insert chunk metadata into the SQLite database.
+
+        Parameters
+        ----------
+        engine : sqlalchemy.Engine
+            Database engine.
+
+        table : sqlalchemy.Table
+            Metadata table.
+
+        rows : list[dict]
+            Metadata rows to insert.
+        """
+        with engine.begin() as conn:
+            for r in rows:
+                conn.execute(table.insert().prefix_with("OR REPLACE"), r)
 
     def run(self):
         """Execute the full embedding pipeline."""
@@ -274,11 +275,11 @@ class EmbeddingPipeline:
         logger.info("Capped review text to max_review_chars=%d", max_chars)
 
         df["canonical_text"] = (
-            df["ProductName"].astype(str)
-            + " | "
-            + df["ProductCategory"].astype(str)
-            + " | "
-            + df["AllReviews"].astype(str)
+                df["ProductName"].astype(str)
+                + " | "
+                + df["ProductCategory"].astype(str)
+                + " | "
+                + df["AllReviews"].astype(str)
         )
 
         # Chunking
@@ -351,6 +352,7 @@ class EmbeddingPipeline:
             json.dump(manifest, f, indent=2)
 
         logger.info("Embedding pipeline completed successfully.")
+
 
 if __name__ == "__main__":
     try:
