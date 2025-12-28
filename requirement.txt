@@ -1,0 +1,11 @@
+pandas==2.0
+pyarrow==11.0
+numpy==1.24
+sentence-transformers==2.2.2
+huggingface-hub==0.19.4
+tqdm==4.65
+faiss-cpu==1.7.4
+sqlalchemy==2.0
+pyyaml==6.0
+kagglehub==0.3.0
+scikit-learn==1.2
