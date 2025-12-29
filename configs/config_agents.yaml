@@ -1,18 +1,29 @@
 # Config for FAISS indexing and multi-agent search workflow
-
 paths:
   embeddings_npz: "data/embeddings/product_embeddings.npz"
   mapping_parquet: "data/embeddings/id_mapping.parquet"
   metadata_db: "data/embeddings/metadata.sqlite"
   faiss_index: "data/embeddings/faiss_index.bin"
+
+  # memory subsystem
   memory_dir: "data/memory"
   user_prefs_json: "data/memory/user_prefs.json"
+  procedural_memory_yaml: "data/memory/procedural_memory.yaml"
+  activity_log_json: "data/memory/activity_log.json"
 
 model:
-  # Model used at query-time for encoding user queries
+  # Embedding model for query encoding
   name: "all-mpnet-base-v2"
+  device: "cuda"
+
+llm:
+  model_name: "Qwen/Qwen2-1.5B-Instruct"
+  device: "cuda"        # cpu or cuda
+  max_new_tokens: 128
 
 search:
   faiss_top_k: 50        # how many candidates to pull from FAISS
-  final_top_k: 10        # how many products we return to the user
+  final_top_k: 5        # how many products we return to the user
   short_term_history: 5  # how many recent queries to keep in memory
+  recent_activity_days: 7  # how many days of activity to return
+
