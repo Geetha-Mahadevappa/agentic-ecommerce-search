@@ -52,11 +52,8 @@ class MemoryAgent:
 
         # Ensure procedural memory exists
         if not self.procedural_memory_path.exists():
-            logger.info(f"Creating procedural memory file: {self.procedural_memory_path}")
-            self._safe_write_yaml(self.procedural_memory_path, {
-                "synonyms": {},
-                "category_keywords": []
-            })
+            raise FileNotFoundError(f"Missing procedural memory file: {self.procedural_memory_path}. "
+                "Please create it before running the system.")
 
         # Ensure user preferences exist
         if not self.user_prefs_path.exists():
