@@ -29,7 +29,6 @@ class FaissIndexBuilder:
         This class loads configuration, reads the embedding file produced by the
         embedding pipeline, constructs an HNSW index, and writes it to disk.
         """
-
         self.config = self._load_config(config_path)
         self.paths = self.config["paths"]
 
@@ -48,15 +47,25 @@ class FaissIndexBuilder:
 
         logger.info(f"Loading embeddings from {npz_path}")
         arr = np.load(npz_path)
-        return arr["embeddings"]
+
+        # Ensure embeddings are float32 and contiguous for FAISS
+        embeddings = np.asarray(arr["embeddings"], dtype=np.float32)
+        embeddings = np.ascontiguousarray(embeddings)
+
+        if embeddings.shape[0] == 0:
+            raise ValueError("Embedding file contains zero vectors — cannot build FAISS index.")
+
+        return embeddings
 
     def build_index(self, embeddings: np.ndarray) -> faiss.Index:
         """Build an HNSW FAISS index from the embedding matrix."""
         dim = embeddings.shape[1]
         logger.info("Building FAISS index: dim=%d, n_vectors=%d", dim, embeddings.shape[0])
 
+        # HNSW index (L2 distance)
         index = faiss.IndexHNSWFlat(dim, 32)
         index.hnsw.efConstruction = 200
+
         index.add(embeddings)
         return index
 
@@ -78,7 +87,7 @@ class FaissIndexBuilder:
 
         # Run a simple nearest‑neighbor query to confirm the index responds
         distances, ids = index.search(embeddings[0:1], 5)
-        if ids is None or len(ids) == 0:
+        if ids is None or ids.size == 0:
             raise RuntimeError("FAISS search returned no results")
 
         logger.info("FAISS index verification passed")
@@ -97,6 +106,7 @@ class FaissIndexBuilder:
         index = self.build_index(embeddings)
         self.verify_index(index, embeddings)
         self.write_index(index)
+
 
 if __name__ == "__main__":
     builder = FaissIndexBuilder(Path("configs/config_agents.yaml"))

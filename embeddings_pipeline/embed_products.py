@@ -66,26 +66,6 @@ class EmbeddingPipeline:
             raise FileNotFoundError("Dataset download finished but CSV files missing.")
         return purchase_csv, reviews_csv
 
-    def chunk_text(self, text: str) -> list[str]:
-        """Split text into overlapping word chunks."""
-        max_words = self.embed_cfg["chunk_words"]
-        overlap = self.embed_cfg["chunk_overlap"]
-
-        if not text:
-            return []
-
-        words = text.split()
-        if len(words) <= max_words:
-            return [" ".join(words)]
-
-        chunks = []
-        i = 0
-        while i < len(words):
-            chunk = words[i:i + max_words]
-            chunks.append(" ".join(chunk))
-            i += max_words - overlap
-        return chunks
-
     def manifest_matches(self, manifest_path: Path) -> bool:
         """Check if existing embeddings match the current model version."""
         if not manifest_path.exists():
@@ -100,10 +80,8 @@ class EmbeddingPipeline:
         meta = MetaData()
 
         table = Table(
-            "chunks", meta,
-            Column("chunk_id", String, primary_key=True),
+            "chunks", meta,   # keeping your table name
             Column("product_id", String, index=True),
-            Column("chunk_index", Integer),
             Column("text", String),
             Column("product_name", String),
             Column("category", String),
@@ -115,7 +93,7 @@ class EmbeddingPipeline:
         meta.create_all(engine)
         return engine, table
 
-    def validate_embeddings(self, embeddings: np.ndarray, chunk_texts: list[str]) -> None:
+    def validate_embeddings(self, embeddings: np.ndarray, texts: list[str]) -> None:
         """
         Validate the embedding matrix before saving or building a FAISS index.
 
@@ -127,14 +105,15 @@ class EmbeddingPipeline:
 
         logger.info("Validating embedding matrix...")
 
-        # The embedding matrix must be 2D: (num_chunks, embedding_dim)
+        # The embedding matrix must be 2D: (num_products, embedding_dim)
         if embeddings.ndim != 2:
             raise ValueError(f"Expected a 2D embedding matrix, got shape {embeddings.shape}")
 
-        # Ensure we have one embedding per chunk
-        if embeddings.shape[0] != len(chunk_texts):
+        # Ensure we have one embedding per product
+        if embeddings.shape[0] != len(texts):
             raise ValueError(
-                f"Embedding count mismatch: {embeddings.shape[0]} embeddings for {len(chunk_texts)} chunks")
+                f"Embedding count mismatch: {embeddings.shape[0]} embeddings for {len(texts)} products"
+            )
 
         # Check for NaNs or infinite values — both indicate a broken batch
         if np.isnan(embeddings).any():
@@ -198,76 +177,62 @@ class EmbeddingPipeline:
         logger.info("Capped review text to max_review_chars=%d", max_chars)
 
         df["canonical_text"] = (
-                df["ProductName"].astype(str)
-                + " | "
-                + df["ProductCategory"].astype(str)
-                + " | "
-                + df["AllReviews"].astype(str)
+            df["ProductName"].astype(str)
+            + " | "
+            + df["ProductCategory"].astype(str)
+            + " | "
+            + df["AllReviews"].astype(str)
         )
 
-        # Chunking
-        logger.info("Chunking product text...")
-        chunk_texts = []
-        mapping = []
-        meta_rows = []
-
-        for _, row in tqdm(df.iterrows(), total=len(df)):
-            pid = str(row["ProductID"])
-            pname = row["ProductName"]
-            cat = row["ProductCategory"]
-            price = float(row["PurchasePrice"])
-
-            chunks = self.chunk_text(row["canonical_text"])
-
-            for idx, chunk in enumerate(chunks):
-                cid = f"{pid}__{idx}"
-                chunk_texts.append(chunk)
-                mapping.append({"chunk_id": cid, "product_id": pid})
-
-                meta_rows.append({
-                    "chunk_id": cid,
-                    "product_id": pid,
-                    "chunk_index": idx,
-                    "text": chunk,
-                    "product_name": pname,
-                    "category": cat,
-                    "price": price,
-                    "embed_model": self.model_cfg["version"],
-                    "created_at": time.time(),
-                })
+        # FIX: no chunking — one embedding per product
+        logger.info("Building product-level text (no chunking)...")
+        product_texts = df["canonical_text"].tolist()
 
         # Embeddings
         logger.info("Loading embedding model: %s", self.model_cfg["name"])
         model = SentenceTransformer(self.model_cfg["name"])
 
-        logger.info(f"Encoding {len(chunk_texts)} chunks...")
-        all_embs = []
-        bs = self.embed_cfg["batch_size"]
-
-        for i in tqdm(range(0, len(chunk_texts), bs)):
-            batch = chunk_texts[i:i + bs]
-            embs = model.encode(batch, batch_size=64, show_progress_bar=False)
-            all_embs.append(np.asarray(embs, dtype=np.float32))
-
-        embeddings = np.vstack(all_embs)
+        logger.info(f"Encoding {len(product_texts)} products...")
+        embeddings = model.encode(
+            product_texts,
+            batch_size=self.embed_cfg["batch_size"],
+            show_progress_bar=False
+        ).astype(np.float32)
 
         # Validate embeddings before saving.
-        self.validate_embeddings(embeddings, chunk_texts)
+        self.validate_embeddings(embeddings, product_texts)
 
         # Save outputs
         tmp = embed_dir / f"tmp_{int(time.time())}.npz"
         np.savez_compressed(tmp, embeddings=embeddings)
         tmp.replace(embeddings_npz)
 
-        pd.DataFrame(mapping).to_parquet(mapping_parquet, index=False)
+        # Mapping: one row per product
+        mapping = df[["ProductID"]].copy()
+        mapping = mapping.rename(columns={"ProductID": "product_id"})
+        mapping["embedding_index"] = range(len(mapping))
+        mapping.to_parquet(mapping_parquet, index=False)
 
+        # Metadata DB: one row per product
         engine, table = self.init_metadata_db(metadata_db)
+        meta_rows = []
+        for _, row in df.iterrows():
+            meta_rows.append({
+                "product_id": str(row["ProductID"]),
+                "text": row["canonical_text"],
+                "product_name": row["ProductName"],
+                "category": row["ProductCategory"],
+                "price": float(row["PurchasePrice"]),
+                "embed_model": self.model_cfg["version"],
+                "created_at": time.time(),
+            })
+
         self.write_metadata(engine, table, meta_rows)
 
         manifest = {
             "model_name": self.model_cfg["name"],
             "model_version": self.model_cfg["version"],
-            "num_chunks": len(chunk_texts),
+            "num_products": len(product_texts),
             "embedding_dim": embeddings.shape[1],
             "created_at": time.time(),
         }
