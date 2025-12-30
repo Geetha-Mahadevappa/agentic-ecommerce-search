@@ -16,6 +16,7 @@ import faiss
 import numpy as np
 import yaml
 import logging
+import pandas as pd
 
 from logging_config import setup_logging
 setup_logging("logs/embeddings.log")
@@ -56,6 +57,55 @@ class FaissIndexBuilder:
             raise ValueError("Embedding file contains zero vectors — cannot build FAISS index.")
 
         return embeddings
+
+    def load_mapping(self) -> pd.DataFrame:
+        """Load and normalize the product mapping used by retrieval."""
+        mapping_path = Path(self.paths["mapping_parquet"])
+        if not mapping_path.exists():
+            raise FileNotFoundError(f"Mapping file not found: {mapping_path}")
+
+        mapping = pd.read_parquet(mapping_path)
+
+        # variant_id is now the primary key for FAISS alignment
+        mapping["variant_id"] = mapping["variant_id"].astype(str).str.strip()
+        mapping["product_id"] = mapping["product_id"].astype(str).str.strip()
+
+        return mapping
+
+    def align_embeddings_with_mapping(self, embeddings: np.ndarray, mapping: pd.DataFrame):
+        """
+        Ensure embeddings and mapping are aligned row‑by‑row.
+
+        FAISS requires that embeddings[i] corresponds to mapping.iloc[i].
+        If mapping was reordered after embeddings were created, we must
+        reorder embeddings to match mapping.
+        """
+        logger.info("Aligning embeddings with mapping using embedding_index...")
+
+        if "embedding_index" not in mapping.columns:
+            raise ValueError("Mapping is missing 'embedding_index' column required for alignment.")
+
+        # sort mapping by embedding_index to restore original order
+        mapping_sorted = mapping.sort_values("embedding_index").reset_index(drop=True)
+
+        if embeddings.shape[0] != mapping_sorted.shape[0]:
+            raise ValueError(
+                f"Embedding count ({embeddings.shape[0]}) does not match mapping count ({mapping_sorted.shape[0]})"
+            )
+
+        # embedding_index should be 0..N-1 after sorting
+        expected = np.arange(len(mapping_sorted))
+        actual = mapping_sorted["embedding_index"].to_numpy()
+        if not np.array_equal(expected, actual):
+            raise ValueError(
+                "embedding_index column is not a contiguous 0..N-1 sequence after sorting; "
+                "embedding/mapping alignment is invalid."
+            )
+
+        # embeddings are already in the correct order; we align mapping to them
+        embeddings_aligned = embeddings
+        logger.info("Alignment complete. Embeddings and mapping now share identical ordering.")
+        return embeddings_aligned, mapping_sorted
 
     def build_index(self, embeddings: np.ndarray) -> faiss.Index:
         """Build an HNSW FAISS index from the embedding matrix."""
@@ -103,6 +153,15 @@ class FaissIndexBuilder:
     def run(self):
         """Execute the full FAISS index build process."""
         embeddings = self.load_embeddings()
+        mapping = self.load_mapping()
+
+        embeddings, mapping_sorted = self.align_embeddings_with_mapping(embeddings, mapping)
+
+        mapping_path = Path(self.paths["mapping_parquet"])
+        mapping_sorted.to_parquet(mapping_path, index=False)
+        logger.info("Mapping saved in aligned order for retrieval pipeline")
+
+        # Build and save FAISS index
         index = self.build_index(embeddings)
         self.verify_index(index, embeddings)
         self.write_index(index)
