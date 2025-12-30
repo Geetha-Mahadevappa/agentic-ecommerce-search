@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """
 Simple HuggingFace LLM client used for LLM-based reranking.
+Provides a small .generate(prompt) interface.
 """
 
 import torch
