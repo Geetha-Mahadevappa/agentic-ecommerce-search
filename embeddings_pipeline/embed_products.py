@@ -81,6 +81,7 @@ class EmbeddingPipeline:
 
         table = Table(
             "chunks", meta,   # keeping your table name
+            Column("variant_id", String, primary_key=True),
             Column("product_id", String, index=True),
             Column("text", String),
             Column("product_name", String),
@@ -96,26 +97,18 @@ class EmbeddingPipeline:
     def validate_embeddings(self, embeddings: np.ndarray, texts: list[str]) -> None:
         """
         Validate the embedding matrix before saving or building a FAISS index.
-
-        This check acts as a safety gate. If something went wrong during encoding
-        (e.g., partial batches, NaNs, wrong shape), it's better to stop the pipeline
-        here than to silently produce a corrupted index. The user can simply rerun
-        the pipeline after fixing the issue.
         """
 
         logger.info("Validating embedding matrix...")
 
-        # The embedding matrix must be 2D: (num_products, embedding_dim)
         if embeddings.ndim != 2:
             raise ValueError(f"Expected a 2D embedding matrix, got shape {embeddings.shape}")
 
-        # Ensure we have one embedding per product
         if embeddings.shape[0] != len(texts):
             raise ValueError(
-                f"Embedding count mismatch: {embeddings.shape[0]} embeddings for {len(texts)} products"
+                f"Embedding count mismatch: {embeddings.shape[0]} embeddings for {len(texts)} texts"
             )
 
-        # Check for NaNs or infinite values — both indicate a broken batch
         if np.isnan(embeddings).any():
             raise ValueError("Embeddings contain NaN values")
 
@@ -171,7 +164,11 @@ class EmbeddingPipeline:
         df = df[df["AllReviews"].str.strip() != ""]
         logger.info(f"Filtered out products with no reviews. Remaining products: {len(df)}")
 
-        # Cap overly long review text to keep chunking and embedding efficient
+        # FIX: KEEP ALL VARIANTS — assign unique variant_id
+        df["variant_id"] = df.index.astype(str)
+        logger.info(f"Assigned unique variant_id to all {len(df)} variants")
+
+        # Cap overly long review text
         max_chars = self.embed_cfg["max_review_chars"]
         df["AllReviews"] = df["AllReviews"].str[:max_chars]
         logger.info("Capped review text to max_review_chars=%d", max_chars)
@@ -184,40 +181,41 @@ class EmbeddingPipeline:
             + df["AllReviews"].astype(str)
         )
 
-        # FIX: no chunking — one embedding per product
-        logger.info("Building product-level text (no chunking)...")
-        product_texts = df["canonical_text"].tolist()
+        # FIX: one embedding per VARIANT
+        logger.info("Building variant-level text (no chunking)...")
+        variant_texts = df["canonical_text"].tolist()
 
         # Embeddings
         logger.info("Loading embedding model: %s", self.model_cfg["name"])
         model = SentenceTransformer(self.model_cfg["name"])
 
-        logger.info(f"Encoding {len(product_texts)} products...")
+        logger.info(f"Encoding {len(variant_texts)} variants...")
         embeddings = model.encode(
-            product_texts,
+            variant_texts,
             batch_size=self.embed_cfg["batch_size"],
             show_progress_bar=False
         ).astype(np.float32)
 
-        # Validate embeddings before saving.
-        self.validate_embeddings(embeddings, product_texts)
+        # Validate embeddings
+        self.validate_embeddings(embeddings, variant_texts)
 
-        # Save outputs
+        # Save embeddings
         tmp = embed_dir / f"tmp_{int(time.time())}.npz"
         np.savez_compressed(tmp, embeddings=embeddings)
         tmp.replace(embeddings_npz)
 
-        # Mapping: one row per product
-        mapping = df[["ProductID"]].copy()
+        # Mapping: variant_id → embedding index
+        mapping = df[["variant_id", "ProductID"]].copy()
         mapping = mapping.rename(columns={"ProductID": "product_id"})
         mapping["embedding_index"] = range(len(mapping))
         mapping.to_parquet(mapping_parquet, index=False)
 
-        # Metadata DB: one row per product
+        # Metadata DB: one row per variant
         engine, table = self.init_metadata_db(metadata_db)
         meta_rows = []
         for _, row in df.iterrows():
             meta_rows.append({
+                "variant_id": row["variant_id"],
                 "product_id": str(row["ProductID"]),
                 "text": row["canonical_text"],
                 "product_name": row["ProductName"],
@@ -232,7 +230,7 @@ class EmbeddingPipeline:
         manifest = {
             "model_name": self.model_cfg["name"],
             "model_version": self.model_cfg["version"],
-            "num_products": len(product_texts),
+            "num_variants": len(variant_texts),
             "embedding_dim": embeddings.shape[1],
             "created_at": time.time(),
         }
