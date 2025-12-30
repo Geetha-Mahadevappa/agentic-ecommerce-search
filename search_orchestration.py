@@ -16,6 +16,7 @@ import faiss
 import pandas as pd
 import sqlalchemy as sa
 from sentence_transformers import SentenceTransformer
+from flashtext2 import KeywordProcessor
 
 from agents.agents import QueryUnderstandingAgent
 from agents.agents import BM25RetrievalAgent, HybridRetrievalAgent, RerankerAgent
@@ -87,17 +88,14 @@ def load_mapping(path: str) -> pd.DataFrame:
 
 def load_chunk_texts(db_path: str, mapping: pd.DataFrame) -> List[str]:
     conn = sqlite3.connect(db_path)
-    df = pd.read_sql("SELECT product_id, text FROM chunks", conn)
+    df = pd.read_sql("SELECT variant_id, text FROM chunks", conn)
     conn.close()
 
-    df["product_id"] = df["product_id"].astype(str)
-    mapping["product_id"] = mapping["product_id"].astype(str)
+    df["variant_id"] = df["variant_id"].astype(str)
+    mapping["variant_id"] = mapping["variant_id"].astype(str)
 
-    # Collapse duplicates: one canonical text per product
-    df = df.groupby("product_id")["text"].apply(lambda x: " ".join(x)).reset_index()
-
-    # Align to mapping order
-    df = mapping.merge(df, on="product_id", how="left")
+    # No collapsing — one canonical text per variant
+    df = mapping.merge(df, on="variant_id", how="left")
     return df["text"].tolist()
 
 def create_engine(db_path: str) -> sa.Engine:
@@ -121,10 +119,16 @@ def build_search_pipeline(
 
     # Load resources
     mapping_df = load_mapping(config.paths.mapping_parquet)
-    mapping_df["product_id"] = mapping_df["product_id"].astype(str)
+    mapping_df["variant_id"] = mapping_df["variant_id"].astype(str)
     faiss_index = load_faiss_index(config.paths.faiss_index)
     chunk_texts = load_chunk_texts(config.paths.metadata_db, mapping_df)
     db_engine = create_engine(config.paths.metadata_db)
+
+    metadata_df = pd.read_sql(
+        "SELECT variant_id, product_id, product_name, category, price, text FROM chunks",
+        db_engine
+    )
+    metadata_df["variant_id"] = metadata_df["variant_id"].astype(str)
 
     # Memory subsystem
     memory_agent = MemoryAgent(
@@ -151,9 +155,28 @@ def build_search_pipeline(
     _ = llm_client.generate("warmup", max_tokens=16)
 
     # Agents
+    keyword_processor = KeywordProcessor(case_sensitive=False)
+    for _, row in metadata_df.iterrows():
+        keyword_processor.add_keyword(row["product_name"])
+        keyword_processor.add_keyword(row["category"])
+
+    product_types = (
+        metadata_df["product_name"].str.lower().tolist() +
+        metadata_df["category"].str.lower().tolist()
+    )
+    product_types = list(set(product_types))
+    pt_embeddings = embedding_model.encode(product_types, convert_to_numpy=True).astype("float32")
+
+    d = pt_embeddings.shape[1]
+    pt_index = faiss.IndexFlatL2(d)
+    pt_index.add(pt_embeddings)
+
     query_agent = QueryUnderstandingAgent(
         procedural_memory=memory_agent.procedural_memory,
         embedding_model=embedding_model,
+        keyword_processor=keyword_processor,
+        product_types=product_types,
+        product_type_index=pt_index
     )
 
     bm25_agent = BM25RetrievalAgent(
@@ -167,6 +190,7 @@ def build_search_pipeline(
         device=config.model.device,
         faiss_index=faiss_index,
         mapping=mapping_df,
+        metadata=metadata_df,
         bm25_agent=bm25_agent,
         top_k=config.search.faiss_top_k,
     )
@@ -194,27 +218,28 @@ def run_search(pipeline: SearchPipeline, raw_query: str) -> Dict[str, Any]:
     clean_query = q["clean_query"]
 
     # Memory update from query
-    pipeline.memory_agent.update_preferences_from_query(clean_query)
+    pipeline.memory_agent.update_preferences_from_query(clean_query, q["product_type"])
+
+    allowed_ids = None
+    if q["has_price_constraint"] and q["max_price"] is not None:
+        allowed_ids = set(
+            pipeline.retrieval_agent.metadata[
+                pipeline.retrieval_agent.metadata["price"] <= q["max_price"]
+            ]["variant_id"].astype(str)
+        )
 
     # Retrieval
-    candidates = pipeline.retrieval_agent.run(clean_query)
+    candidates = pipeline.retrieval_agent.run(q, allowed_ids=allowed_ids)
 
-    # Final reranking (with metadata and LLM rerank)
+    # Final reranking
     final_results = pipeline.reranker.run(clean_query, candidates)
     final_results.sort(key=lambda x: x["score"], reverse=True)
 
     # Memory updates
     pipeline.memory_agent.add_short_term(clean_query, final_results)
-    pipeline.memory_agent.log_activity(
-        clean_query,
-        [r["product_id"] for r in final_results],
-    )
-    recent_activity = pipeline.memory_agent.get_recent_activity(
-        days=pipeline.config.search.recent_activity_days
-    )
+    pipeline.memory_agent.log_activity(clean_query, [r["variant_id"] for r in final_results])
 
     return {
         "query": q,
-        "results": final_results,
-        "recent_activity": recent_activity,
+        "results": final_results
     }
