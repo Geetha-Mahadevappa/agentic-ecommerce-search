@@ -18,18 +18,30 @@ from logging_config import setup_logging
 setup_logging("logs/agent_runtime.log")
 logger = logging.getLogger(__name__)
 
+
 # Query understanding
 @dataclass
 class QueryUnderstandingAgent:
-    """Normalizes the query and applies simple synonym and category hints."""
+    """
+    Normalizes the query and applies synonym expansion, category hints,
+    and product-type inference using FlashText and Vector Classification fallback.
+    """
 
     procedural_memory: Dict[str, Any]
     embedding_model: SentenceTransformer
+    keyword_processor: Any
+    product_types: List[str] = None
+    product_type_index: Any = None
 
     def __post_init__(self):
         self.synonyms = self.procedural_memory.get("synonyms", {})
         self.category_keywords = self.procedural_memory.get("category_keywords", [])
-        logger.info(f"QueryUnderstandingAgent initialized with {len(self.synonyms)} synonyms and {len(self.category_keywords)} category keywords")
+
+        logger.info(
+            f"QueryUnderstandingAgent initialized with "
+            f"{len(self.synonyms)} synonyms and "
+            f"{len(self.category_keywords)} category keywords"
+        )
 
     def _normalize(self, text: str) -> str:
         cleaned = text.lower().strip()
@@ -46,11 +58,10 @@ class QueryUnderstandingAgent:
                 expanded.extend(syn_list)
             else:
                 expanded.append(w)
-        mapped_text = " ".join(expanded)
 
+        mapped_text = " ".join(expanded)
         if mapped_text != text:
             logger.info(f"Applied synonyms: {text}, {mapped_text}")
-
         return mapped_text
 
     def _infer_category(self, text: str) -> str:
@@ -61,16 +72,72 @@ class QueryUnderstandingAgent:
         logger.info(f"No category inferred for query {text}")
         return "unknown"
 
+    def _infer_product_type_vector(self, text: str) -> str | None:
+        if self.product_type_index is None or not self.product_types:
+            return None
+
+        try:
+            q_emb = self.embedding_model.encode(text, convert_to_numpy=True).astype("float32")
+            q_emb = q_emb.reshape(1, -1)
+
+            scores, idxs = self.product_type_index.search(q_emb, 1)
+            best_idx = idxs[0][0]
+
+            if best_idx < 0:
+                return None
+
+            pt = self.product_types[best_idx]
+            logger.info(f"Inferred product_type '{pt}' via vector classifier")
+            return pt
+
+        except Exception as e:
+            logger.error(f"Vector product-type inference failed: {e}")
+            return None
+
+    def _infer_product_type(self, text: str) -> str | None:
+        # FlashText exact match
+        matches = self.keyword_processor.extract_keywords(text)
+        if matches:
+            pt = max(matches, key=len)
+            logger.info(f"Inferred product_type '{pt}' via FlashText")
+            return pt
+
+        # Vector fallback
+        return self._infer_product_type_vector(text)
+
+    def _infer_price_intent(self, text: str) -> tuple[bool, float | None]:
+        has_price_words = any(w in text for w in ["cheap", "low price", "budget", "under", "<", "<="])
+        max_price = None
+
+        tokens = text.replace("$", " ").replace("€", " ").split()
+        for t in tokens:
+            try:
+                val = float(t)
+                max_price = val
+                has_price_words = True
+                break
+            except ValueError:
+                continue
+
+        return has_price_words, max_price
+
     def run(self, raw_query: str) -> Dict[str, Any]:
         logger.info(f"Running QueryUnderstandingAgent on query: {raw_query}")
+
         cleaned = self._normalize(raw_query)
         cleaned = self._apply_synonyms(cleaned)
+
         category = self._infer_category(cleaned)
+        product_type = self._infer_product_type(cleaned)
+        has_price_constraint, max_price = self._infer_price_intent(cleaned)
 
         return {
             "raw_query": raw_query,
             "clean_query": cleaned,
             "category": category,
+            "product_type": product_type,
+            "has_price_constraint": has_price_constraint,
+            "max_price": max_price
         }
 
 
@@ -92,8 +159,10 @@ class BM25RetrievalAgent:
             logger.error(f"Failed to initialize BM25 index: {e}")
             raise
 
-    def run(self, query: str) -> List[Dict[str, Any]]:
-        logger.info(f"Running BM25 retrieval for query: {query}", )
+    def run(self, query: str, allowed_ids: set[str] | None = None):
+        """Run BM25 retrieval and optionally filter by allowed variant IDs."""
+        logger.info(f"Running BM25 retrieval for query: {query}")
+
         try:
             tokens = query.lower().split()
             scores = self._bm25.get_scores(tokens)
@@ -106,23 +175,26 @@ class BM25RetrievalAgent:
 
         out: List[Dict[str, Any]] = []
         for idx in idxs:
-            try:
-                row = self.mapping.iloc[idx]
-                out.append({"product_id": row["product_id"], "score": float(scores[idx])})
-            except Exception as e:
-                logger.error(f"Failed to map BM25 index {idx} to product: {e}")
+            row = self.mapping.iloc[idx]
+            vid = str(row["variant_id"]).strip()
+
+            if allowed_ids is not None and vid not in allowed_ids:
+                continue
+
+            out.append({"variant_id": vid, "score": float(scores[idx])})
         return out
 
 
 # Hybrid retrieval (FAISS + BM25)
 @dataclass
 class HybridRetrievalAgent:
-    """Combines FAISS semantic search with BM25 lexical search."""
+    """Combines FAISS semantic search with BM25 lexical search and applies product-type filtering."""
 
     model_name: str
     device: str
     faiss_index: faiss.Index
     mapping: pd.DataFrame
+    metadata: pd.DataFrame
     bm25_agent: BM25RetrievalAgent
     top_k: int = 50
     semantic_weight: float = 0.6
@@ -136,7 +208,11 @@ class HybridRetrievalAgent:
             logger.error(f"Failed to load embedding model {self.model_name}: {e}")
             raise
 
-    def _semantic_search(self, query: str) -> List[Dict[str, Any]]:
+        # Normalize variant_id for consistent lookup
+        self.mapping["variant_id"] = self.mapping["variant_id"].astype(str).str.strip()
+        self.metadata["variant_id"] = self.metadata["variant_id"].astype(str).str.strip()
+
+    def _semantic_search(self, query: str, allowed_ids: set[str] | None = None):
         logger.info(f"Running FAISS semantic search for query: {query}")
         try:
             q_emb = self._model.encode(query, convert_to_numpy=True).astype("float32")
@@ -148,40 +224,73 @@ class HybridRetrievalAgent:
 
         out: List[Dict[str, Any]] = []
         for score, idx in zip(scores[0], idxs[0]):
-            if idx < 0:
+            row = self.mapping.iloc[idx]
+            vid = str(row["variant_id"]).strip()
+
+            if allowed_ids is not None and vid not in allowed_ids:
                 continue
-            try:
-                row = self.mapping.iloc[idx]
-                out.append({"product_id": row["product_id"], "score": float(score)})
-            except Exception as e:
-                logger.error(f"Failed to map FAISS index {idx} to product: {e}")
+
+            out.append({"variant_id": vid, "score": float(score)})
+
         logger.info(f"FAISS returned {len(out)} candidates")
         return out
 
-    def run(self, query: str) -> List[Dict[str, Any]]:
+    def run(self, query_info: Dict[str, Any], allowed_ids: set[str] | None = None) -> List[Dict[str, Any]]:
+        """Run hybrid retrieval with optional pre-filtered allowed_ids."""
+        query = query_info["clean_query"]
+        product_type = query_info.get("product_type")
+
         logger.info(f"Running HybridRetrievalAgent for query: {query}")
 
-        sem_results = self._semantic_search(query)
-        bm25_results = self.bm25_agent.run(query)
+        # Semantic retrieval
+        sem_results = self._semantic_search(query, allowed_ids=allowed_ids)
 
+        # Lexical retrieval
+        bm25_results = self.bm25_agent.run(query, allowed_ids=allowed_ids)
+
+        # Merge scores
         combined: Dict[str, float] = {}
-
         for r in sem_results:
-            combined.setdefault(r["product_id"], 0.0)
-            combined[r["product_id"]] += r["score"] * self.semantic_weight
+            vid = r["variant_id"]
+            combined.setdefault(vid, 0.0)
+            combined[vid] += r["score"] * self.semantic_weight
 
         for r in bm25_results:
-            combined.setdefault(r["product_id"], 0.0)
-            combined[r["product_id"]] += r["score"] * self.bm25_weight
+            vid = r["variant_id"]
+            combined.setdefault(vid, 0.0)
+            combined[vid] += r["score"] * self.bm25_weight
 
-        merged = [{"product_id": pid, "score": score} for pid, score in combined.items()]
+        merged = [{"variant_id": vid, "score": score} for vid, score in combined.items()]
         merged.sort(key=lambda x: x["score"], reverse=True)
 
-        logger.info(f"Hybrid retrieval produced {len(merged)} merged candidates")
-        return merged
+        # Apply product-type filtering
+        if product_type:
+            pt_tokens = product_type.lower().split()
+            filtered = []
+
+            for item in merged:
+                vid = item["variant_id"]
+
+                if allowed_ids is not None and vid not in allowed_ids:
+                    continue
+
+                row = self.metadata[self.metadata["variant_id"] == vid].iloc[0]
+                name = str(row["product_name"]).lower()
+                category = str(row["category"]).lower()
+
+                text_tokens = f"{name} {category}".split()
+
+                if any(tok in text_tokens for tok in pt_tokens):
+                    filtered.append(item)
+
+            if filtered:
+                merged = filtered
+
+        merged.sort(key=lambda x: x["score"], reverse=True)
+        logger.info(f"Hybrid retrieval produced {len(merged)} final candidates")
+        return merged[: self.top_k]
 
 
-# Reranker with metadata and LLM reranking
 @dataclass
 class RerankerAgent:
     """
@@ -194,31 +303,31 @@ class RerankerAgent:
     llm_client: Any
     final_top_k: int = 10
 
-    def _fetch_metadata(self, product_id: str) -> Dict[str, Any]:
-        logger.debug(f"Fetching metadata for product_id {product_id}")
+    def _fetch_metadata(self, variant_id: str) -> Dict[str, Any]:
+        logger.debug(f"Fetching metadata for variant_id {variant_id}")
         query = text(
             """
-            SELECT product_id, product_name, category, price
+            SELECT variant_id, product_id, product_name, category, price
             FROM chunks
-            WHERE product_id = :pid
+            WHERE variant_id = :vid
             LIMIT 1
             """
         )
         try:
             with self.engine.begin() as conn:
-                row = conn.execute(query, {"pid": product_id}).fetchone()
+                row = conn.execute(query, {"vid": variant_id}).fetchone()
                 return dict(row._mapping) if row else {}
         except Exception as e:
-            logger.error(f"Metadata fetch failed for product_id {product_id}: {e}")
+            logger.error(f"Metadata fetch failed for variant_id {variant_id}: {e}")
             return {}
 
     def _apply_metadata(self, candidates: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         logger.info(f"Applying metadata to {len(candidates)} candidates")
         enriched: List[Dict[str, Any]] = []
         for c in candidates:
-            meta = self._fetch_metadata(c["product_id"])
+            meta = self._fetch_metadata(c["variant_id"])
             if not meta:
-                logger.warning("No metadata found for product_id '%s'", c["product_id"])
+                logger.warning("No metadata found for variant_id '%s'", c["variant_id"])
                 continue
             enriched.append({**c, **meta})
         return enriched
@@ -233,21 +342,21 @@ class RerankerAgent:
             ]
             for i, item in enumerate(items, start=1):
                 prompt_lines.append(
-                    f"{i}. id={item['product_id']}, "
+                    f"{i}. id={item['variant_id']}, "
                     f"name={item['product_name']}, "
                     f"category={item['category']}, "
                     f"price={item['price']}"
                 )
             prompt_lines.append(
-                "Return a comma-separated list of product_ids in the new order."
+                "Return a comma-separated list of variant_ids in the new order."
             )
             prompt = "\n".join(prompt_lines)
 
             text_response = self.llm_client.generate(prompt, max_tokens=128).strip()
-            product_ids = [p.strip() for p in text_response.split(",") if p.strip()]
+            variant_ids = [p.strip() for p in text_response.split(",") if p.strip()]
 
-            order = {pid: idx for idx, pid in enumerate(product_ids)}
-            items.sort(key=lambda x: order.get(x["product_id"], len(items)))
+            order = {vid: idx for idx, vid in enumerate(variant_ids)}
+            items.sort(key=lambda x: order.get(x["variant_id"], len(items)))
             return items
 
         except Exception as e:
@@ -270,65 +379,3 @@ class RerankerAgent:
 
         logger.info(f"RerankerAgent returning {len(top)} final results.")
         return top
-
-        if self.llm_client is not None and top:
-            try:
-                top = self._llm_rerank(query, top)
-            except Exception as e:
-                logger.error(f"LLM rerank crashed: {e}. Falling back to score ranking.")
-                top.sort(key=lambda x: x["score"], reverse=True)
-
-        logger.info(f"RerankerAgent returning {len(top)} final results.")
-        return top
-
-
-        if self.llm_client is not None and top:
-            try:
-                top = self._llm_rerank(query, top)
-            except Exception as e:
-                logger.error(f"LLM rerank crashed: {e}. Falling back to score ranking.")
-                top.sort(key=lambda x: x["score"], reverse=True)
-
-        logger.info(f"RerankerAgent returning {len(top)} final results.")
-        return top
-
-            q_emb = self._model.encode(query, convert_to_numpy=True).astype("float32")
-            q_emb = q_emb.reshape(1, -1)
-            scores, idxs = self.faiss_index.search(q_emb, self.top_k)
-        except Exception as e:
-            logger.error(f"FAISS search failed for query {query}: {e}")
-            return []
-
-        out: List[Dict[str, Any]] = []
-        for score, idx in zip(scores[0], idxs[0]):
-            if idx < 0:
-                continue
-            try:
-                row = self.mapping.iloc[idx]
-                out.append({"product_id": row["product_id"], "score": float(score)})
-            except Exception as e:
-                logger.error(f"Failed to map FAISS index {idx} to product: {e}")
-        logger.info(f"FAISS returned {len(out)} candidates")
-        return out
-
-    def run(self, query: str) -> List[Dict[str, Any]]:
-        logger.info(f"Running HybridRetrievalAgent for query: {query}")
-
-        sem_results = self._semantic_search(query)
-        bm25_results = self.bm25_agent.run(query)
-
-        combined: Dict[str, float] = {}
-
-        for r in sem_results:
-            combined.setdefault(r["product_id"], 0.0)
-            combined[r["product_id"]] += r["score"] * self.semantic_weight
-
-        for r in bm25_results:
-            combined.setdefault(r["product_id"], 0.0)
-            combined[r["product_id"]] += r["score"] * self.bm25_weight
-
-        merged = [{"product_id": pid, "score": score} for pid, score in combined.items()]
-        merged.sort(key=lambda x: x["score"], reverse=True)
-
-        logger.info(f"Hybrid retrieval produced {len(merged)} merged candidates")
-        return merged
