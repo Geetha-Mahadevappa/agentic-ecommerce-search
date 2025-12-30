@@ -18,6 +18,7 @@ This module organizes information into four memory layers:
 All disk writes use file locks and atomic temp writes to avoid corruption.
 """
 
+import re
 import json
 import os
 import time
@@ -128,6 +129,50 @@ class MemoryAgent:
             except Exception as e:
                 logger.error(f"Failed to write YAML file {path}: {e}")
 
+    def _infer_price_sensitivity(self, query: str, product_type: str | None = None) -> str | None:
+        """Infer the user's price sensitivity using price bands from procedural memory."""
+        q = query.lower()
+
+        # Load price bands from procedural memory
+        price_bands = self.procedural_memory.get("price_bands", {})
+
+        # Determine which category's price bands to use
+        category_key = None
+        if product_type:
+            pt = product_type.lower()
+            for cat in price_bands.keys():
+                if cat in pt:
+                    category_key = cat
+                    break
+
+        if not category_key and price_bands:
+            category_key = next(iter(price_bands.keys()))
+
+        # Extract numeric price intent from query
+        import re
+        match = re.search(r"(under|below|less than)\s+(\d+)", q)
+        if match and category_key:
+            amount = int(match.group(2))
+            bands = price_bands.get(category_key, {})
+
+            for band_name, (low, high) in bands.items():
+                if low <= amount <= high:
+                    return band_name
+
+        # Keyword-based inference
+        detect_terms = self.procedural_memory.get("query_rules", {}).get("detect_price_intent", [])
+
+        low_terms = ["cheap", "budget", "affordable", "low cost"]
+        mid_terms = ["mid range", "mid-range", "value for money", "reasonable"]
+        high_terms = ["premium", "high end", "high-end", "expensive", "flagship"]
+
+        if any(term in q for term in low_terms + detect_terms):
+            return "low"
+        if any(term in q for term in mid_terms):
+            return "medium"
+        if any(term in q for term in high_terms):
+            return "high"
+        return None
 
     # Procedural memory
     def get_category_keywords(self) -> List[str]:
@@ -144,7 +189,7 @@ class MemoryAgent:
     def _write_user_prefs(self, data):
         self._safe_write_json(self.user_prefs_path, data)
 
-    def update_preferences_from_query(self, query: str):
+    def update_preferences_from_query(self, query: str, product_type: str | None = None):
         """Update user preferences based on category keywords found in the query."""
         logger.info(f"Updating user preferences from query: {query}")
 
@@ -152,12 +197,21 @@ class MemoryAgent:
         categories = prefs.get("preferred_categories", [])
         q = query.lower()
 
+        if product_type:
+            pt = product_type.lower().strip()
+            if pt and pt not in categories:
+                logger.info(f"Adding preferred category from product_type: {pt}")
+                categories.append(pt)
+
         for kw in self.get_category_keywords():
             if kw in q and kw not in categories:
                 logger.info(f"Adding preferred category: {kw}")
                 categories.append(kw)
 
         prefs["preferred_categories"] = categories
+        price_pref = self._infer_price_sensitivity(query)
+        if price_pref:
+            prefs["price_sensitivity"] = price_pref
         self._write_user_prefs(prefs)
 
     def get_preferences(self):
