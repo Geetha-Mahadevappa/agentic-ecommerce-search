@@ -1,4 +1,4 @@
-# Configs for embedding pipeline
+# General settings for embedding pipeline
 
 paths:
   raw_dir: "data/raw"
@@ -11,12 +11,11 @@ paths:
   manifest_json: "data/embeddings/manifest.json"
 
 model:
-  name: "all-mpnet-base-v2"
-  version: "all-mpnet-base-v2-v1"
+  name:  "all-mpnet-base-v2"
+  version:  "all-mpnet-base-v2"
+  device: "cuda"
 
 embedding:
-  batch_size: 256
-  chunk_words: 300
-  chunk_overlap: 50
-  max_review_chars: 5000
+  batch_size: 32
+  max_review_chars: 1000
 
