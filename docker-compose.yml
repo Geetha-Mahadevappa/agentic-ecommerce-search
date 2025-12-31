@@ -1,0 +1,35 @@
+services:
+  search_api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: search-api:latest
+
+    ports:
+      - "8000:8000"
+
+    restart: unless-stopped
+
+    env_file:
+      - .env
+    environment:
+      PYTHONUNBUFFERED: "1"
+      WORKERS_PER_CORE: "1"
+      LOG_LEVEL: "info"
+
+    # GPU support
+    runtime: nvidia
+
+    networks:
+      - search_network
+
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8000/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 40s
+
+networks:
+  search_network:
+    driver: bridge
