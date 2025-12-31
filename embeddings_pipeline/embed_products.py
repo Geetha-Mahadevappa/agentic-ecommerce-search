@@ -105,9 +105,7 @@ class EmbeddingPipeline:
             raise ValueError(f"Expected a 2D embedding matrix, got shape {embeddings.shape}")
 
         if embeddings.shape[0] != len(texts):
-            raise ValueError(
-                f"Embedding count mismatch: {embeddings.shape[0]} embeddings for {len(texts)} texts"
-            )
+            raise ValueError(f"Embedding count mismatch: {embeddings.shape[0]} embeddings for {len(texts)} texts")
 
         if np.isnan(embeddings).any():
             raise ValueError("Embeddings contain NaN values")
@@ -213,14 +211,18 @@ class EmbeddingPipeline:
         # Metadata DB: one row per variant
         engine, table = self.init_metadata_db(metadata_db)
         meta_rows = []
+
         for _, row in df.iterrows():
+            # Compute actual price instead of the product
+            unit_price = float(row["PurchasePrice"]) / float(row["PurchaseQuantity"])
+
             meta_rows.append({
                 "variant_id": row["variant_id"],
                 "product_id": str(row["ProductID"]),
                 "text": row["canonical_text"],
                 "product_name": row["ProductName"],
                 "category": row["ProductCategory"],
-                "price": float(row["PurchasePrice"]),
+                "price": round(unit_price, 2),
                 "embed_model": self.model_cfg["version"],
                 "created_at": time.time(),
             })
