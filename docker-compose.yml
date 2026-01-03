@@ -10,14 +10,11 @@ services:
 
     restart: unless-stopped
 
-    env_file:
-      - .env
     environment:
       PYTHONUNBUFFERED: "1"
-      WORKERS_PER_CORE: "1"
-      LOG_LEVEL: "info"
+      NVIDIA_VISIBLE_DEVICES: all
+      NVIDIA_DRIVER_CAPABILITIES: compute,utility
 
-    # GPU support
     runtime: nvidia
 
     networks:
@@ -27,8 +24,8 @@ services:
       test: ["CMD-SHELL", "curl -f http://localhost:8000/health || exit 1"]
       interval: 30s
       timeout: 10s
-      retries: 5
-      start_period: 40s
+      retries: 10
+      start_period: 360s   # allow model loading on first run
 
 networks:
   search_network:

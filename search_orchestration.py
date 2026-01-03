@@ -13,6 +13,7 @@ from typing import Dict, Any, List
 
 import yaml
 import faiss
+import logging
 import pandas as pd
 import sqlalchemy as sa
 from sentence_transformers import SentenceTransformer
@@ -22,6 +23,11 @@ from agents.agents import QueryUnderstandingAgent
 from agents.agents import BM25RetrievalAgent, HybridRetrievalAgent, RerankerAgent
 from agents.memory_agent import MemoryAgent
 from llm.llm_client import LLMClient
+
+# Initialize logging
+from logging_config import setup_logging
+setup_logging("logs/agent_runtime.log")
+logger = logging.getLogger(__name__)
 
 
 # Config dataclasses
@@ -114,9 +120,11 @@ class SearchPipeline:
 
 
 def build_search_pipeline(config_path: str = "configs/config_agents.yaml",) -> SearchPipeline:
+    logger.info(f"Loading configuration from {config_path}")
     config = load_config(config_path)
 
     # Load resources
+    logger.info("Loading mapping, FAISS index, and metadata")
     mapping_df = load_mapping(config.paths.mapping_parquet)
     mapping_df["variant_id"] = mapping_df["variant_id"].astype(str)
     faiss_index = load_faiss_index(config.paths.faiss_index)
@@ -130,6 +138,7 @@ def build_search_pipeline(config_path: str = "configs/config_agents.yaml",) -> S
     metadata_df["variant_id"] = metadata_df["variant_id"].astype(str)
 
     # Memory subsystem
+    logger.info("Initializing MemoryAgent")
     memory_agent = MemoryAgent(
         memory_dir=Path(config.paths.memory_dir),
         user_prefs_path=Path(config.paths.user_prefs_json),
@@ -140,6 +149,7 @@ def build_search_pipeline(config_path: str = "configs/config_agents.yaml",) -> S
     )
 
     # Embedding model
+    logger.info(f"Loading embedding model: {config.model.name}")
     embedding_model = SentenceTransformer(
         config.model.name,
         device=config.model.device,
@@ -147,6 +157,7 @@ def build_search_pipeline(config_path: str = "configs/config_agents.yaml",) -> S
     _ = embedding_model.encode(["warmup query"], convert_to_numpy=True)
 
     # LLM client (used for reranking)
+    logger.info(f"Loading LLM model: {config.llm.model_name}")
     llm_client = LLMClient(
         model_name=config.llm.model_name,
         device=config.llm.device,
@@ -179,6 +190,7 @@ def build_search_pipeline(config_path: str = "configs/config_agents.yaml",) -> S
         .tolist()
     )
 
+    logger.info("Building retrieval and reranking agents")
     query_agent = QueryUnderstandingAgent(
         procedural_memory=memory_agent.procedural_memory,
         embedding_model=embedding_model,
@@ -211,6 +223,7 @@ def build_search_pipeline(config_path: str = "configs/config_agents.yaml",) -> S
         llm_client=llm_client,
         final_top_k=config.search.final_top_k,
     )
+    logger.info("Search pipeline initialized successfully")
 
     return SearchPipeline(
         config=config,
@@ -228,6 +241,7 @@ def run_search(pipeline: SearchPipeline, raw_query: str) -> Dict[str, Any]:
     """
 
     # Query Understanding
+    logger.info(f"Received query: {raw_query}")
     q = pipeline.query_agent.run(raw_query)
     clean_query = q["clean_query"]
 
@@ -271,6 +285,7 @@ def run_search(pipeline: SearchPipeline, raw_query: str) -> Dict[str, Any]:
     # Memory Updates
     pipeline.memory_agent.add_short_term(clean_query, final_results)
     pipeline.memory_agent.log_activity(clean_query, [r["variant_id"] for r in final_results])
+    logger.info(f"Returning {len(final_results)} final results")
 
     return {
         "query": q,
