@@ -2,9 +2,9 @@
 
 paths:
   raw_dir: "data/raw"
+  purchase_csv: "customer_purchase_data.csv"
+  reviews_csv: "customer_reviews_data.csv"
   embed_dir: "data/embeddings"
-  purchase_csv: "data/raw/customer_purchase_data.csv"
-  reviews_csv: "data/raw/customer_reviews_data.csv"
   embeddings_npz: "data/embeddings/product_embeddings.npz"
   mapping_parquet: "data/embeddings/id_mapping.parquet"
   metadata_db: "data/embeddings/metadata.sqlite"
@@ -17,5 +17,7 @@ model:
 
 embedding:
   batch_size: 32
+  max_reviews: 10
   max_review_chars: 1000
+
 
