@@ -7,7 +7,7 @@ This module organizes information into four memory layers:
    - category keywords, domain rules
 
 2. Long-term memory (JSON): persistent user preferences
-   - preferred categories, typical price range
+   - preferred categories, typical price range, preferred country
 
 3. Short-term memory history: session-level context
    - recent queries, result counts
@@ -41,6 +41,7 @@ class MemoryAgent:
     user_prefs_path: Path
     procedural_memory_path: Path
     activity_log_path: Path
+    user_infer_path: Path
     short_term_limit: int = 5
 
     short_term_history: List[Dict[str, Any]] = field(default_factory=list)
@@ -53,15 +54,27 @@ class MemoryAgent:
 
         # Ensure procedural memory exists
         if not self.procedural_memory_path.exists():
-            raise FileNotFoundError(f"Missing procedural memory file: {self.procedural_memory_path}. "
-                "Please create it before running the system.")
+            raise FileNotFoundError(
+                f"Missing procedural memory file: {self.procedural_memory_path}. "
+                "Please create it before running the system."
+            )
 
         # Ensure user preferences exist
         if not self.user_prefs_path.exists():
             logger.info(f"Creating user preferences file: {self.user_prefs_path}")
             self._safe_write_json(self.user_prefs_path, {
                 "preferred_categories": [],
-                "price_sensitivity": None
+                "price_sensitivity": None,
+                "preferred_country": None
+            })
+
+        # Ensure inferred memory exists
+        if not self.user_infer_path.exists():
+            logger.info(f"Creating inferred memory file: {self.user_infer_path}")
+            self._safe_write_json(self.user_infer_path, {
+                "preferred_country": None,
+                "inferred_country": None,
+                "candidate_countries": []
             })
 
         # Ensure activity log exists
@@ -131,10 +144,16 @@ class MemoryAgent:
 
     def _infer_price_sensitivity(self, query: str, product_type: str | None = None) -> str | None:
         """Infer the user's price sensitivity using price bands from procedural memory."""
-        q = query.lower()
+        q = query.lower().replace("-", " ")
 
-        # Load price bands from procedural memory
+        # Load price bands and query rules
         price_bands = self.procedural_memory.get("price_bands", {})
+        rules = self.procedural_memory.get("query_rules", {})
+
+        low_terms = rules.get("low_price_intent", [])
+        mid_terms = rules.get("mid_price_intent", [])
+        high_terms = rules.get("high_price_intent", [])
+        numeric_triggers = rules.get("numeric_price_triggers", [])
 
         # Determine which category's price bands to use
         category_key = None
@@ -148,25 +167,18 @@ class MemoryAgent:
         if not category_key and price_bands:
             category_key = next(iter(price_bands.keys()))
 
-        # Extract numeric price intent from query
-        import re
-        match = re.search(r"(under|below|less than)\s+(\d+)", q)
-        if match and category_key:
-            amount = int(match.group(2))
-            bands = price_bands.get(category_key, {})
+        # Numeric price intent
+        if any(t in q for t in numeric_triggers):
+            match = re.search(r"(under|below|less than)\s+(\d+)", q)
+            if match and category_key:
+                amount = int(match.group(2))
+                bands = price_bands.get(category_key, {})
+                for band_name, (low, high) in bands.items():
+                    if low <= amount <= high:
+                        return band_name
 
-            for band_name, (low, high) in bands.items():
-                if low <= amount <= high:
-                    return band_name
-
-        # Keyword-based inference
-        detect_terms = self.procedural_memory.get("query_rules", {}).get("detect_price_intent", [])
-
-        low_terms = ["cheap", "budget", "affordable", "low cost"]
-        mid_terms = ["mid range", "mid-range", "value for money", "reasonable"]
-        high_terms = ["premium", "high end", "high-end", "expensive", "flagship"]
-
-        if any(term in q for term in low_terms + detect_terms):
+        # Keyword-based intent
+        if any(term in q for term in low_terms):
             return "low"
         if any(term in q for term in mid_terms):
             return "medium"
@@ -178,16 +190,40 @@ class MemoryAgent:
     def get_category_keywords(self) -> List[str]:
         return self.procedural_memory.get("category_keywords", [])
 
-
     # User preferences
     def _read_user_prefs(self):
         return self._safe_read_json(
             self.user_prefs_path,
-            default={"preferred_categories": [], "price_sensitivity": None}
+            default={"preferred_categories": [], "price_sensitivity": None, "preferred_country": None}
         )
 
     def _write_user_prefs(self, data):
         self._safe_write_json(self.user_prefs_path, data)
+
+    # Inferred memory
+    def get_inferred(self):
+        return self._safe_read_json(
+            self.user_infer_path,
+            default={
+                "preferred_country": None,
+                "inferred_country": None,
+                "candidate_countries": []
+            }
+        )
+
+    def update_inferred(self, data: Dict[str, Any]):
+        current = self.get_inferred()
+        current.update(data)
+        self._safe_write_json(self.user_infer_path, current)
+
+    def add_candidate_country(self, country: str):
+        """Store a country inferred from user behavior (e.g., clicked product)."""
+        data = self.get_inferred()
+        candidates = data.get("candidate_countries", [])
+        if country not in candidates:
+            candidates.append(country)
+        data["candidate_countries"] = candidates
+        self.update_inferred(data)
 
     def update_preferences_from_query(self, query: str, product_type: str | None = None):
         """Update user preferences based on category keywords found in the query."""
@@ -217,7 +253,6 @@ class MemoryAgent:
     def get_preferences(self):
         return self._read_user_prefs()
 
-
     # Short-term memory
     def add_short_term(self, query: str, results: List[Any]):
         """Add a short-term memory entry for the current query."""
@@ -232,7 +267,6 @@ class MemoryAgent:
 
     def get_short_term(self):
         return self.short_term_history
-
 
     # Activity log
     def _read_activity_log(self):
