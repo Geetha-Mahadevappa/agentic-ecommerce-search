@@ -33,6 +33,7 @@ class PathsConfig:
     faiss_index: str
     memory_dir: str
     user_prefs_json: str
+    user_infer_json: str
     procedural_memory_yaml: str
     activity_log_json: str
 
@@ -112,9 +113,7 @@ class SearchPipeline:
     reranker: RerankerAgent
 
 
-def build_search_pipeline(
-    config_path: str = "configs/config_agents.yaml",
-) -> SearchPipeline:
+def build_search_pipeline(config_path: str = "configs/config_agents.yaml",) -> SearchPipeline:
     config = load_config(config_path)
 
     # Load resources
@@ -125,7 +124,7 @@ def build_search_pipeline(
     db_engine = create_engine(config.paths.metadata_db)
 
     metadata_df = pd.read_sql(
-        "SELECT variant_id, product_id, product_name, category, price, text FROM chunks",
+        "SELECT variant_id, product_id, product_name, category, country, price, text FROM chunks",
         db_engine
     )
     metadata_df["variant_id"] = metadata_df["variant_id"].astype(str)
@@ -134,6 +133,7 @@ def build_search_pipeline(
     memory_agent = MemoryAgent(
         memory_dir=Path(config.paths.memory_dir),
         user_prefs_path=Path(config.paths.user_prefs_json),
+        user_infer_path=Path(config.paths.user_infer_json),
         procedural_memory_path=Path(config.paths.procedural_memory_yaml),
         activity_log_path=Path(config.paths.activity_log_json),
         short_term_limit=config.search.short_term_history,
@@ -171,12 +171,22 @@ def build_search_pipeline(
     pt_index = faiss.IndexFlatL2(d)
     pt_index.add(pt_embeddings)
 
+    countries = (
+        metadata_df["country"]
+        .dropna()
+        .str.lower()
+        .unique()
+        .tolist()
+    )
+
     query_agent = QueryUnderstandingAgent(
         procedural_memory=memory_agent.procedural_memory,
         embedding_model=embedding_model,
         keyword_processor=keyword_processor,
+        memory_agent=memory_agent,
         product_types=product_types,
-        product_type_index=pt_index
+        product_type_index=pt_index,
+        countries=countries
     )
 
     bm25_agent = BM25RetrievalAgent(
@@ -210,32 +220,55 @@ def build_search_pipeline(
         reranker=reranker,
     )
 
-
 # Public search entrypoint
 def run_search(pipeline: SearchPipeline, raw_query: str) -> Dict[str, Any]:
-    # Parse query
+    """
+    End-to-end search orchestration. Handles query parsing, memory updates,
+    country and price filtering, hybrid retrieval, and final reranking.
+    """
+
+    # Query Understanding
     q = pipeline.query_agent.run(raw_query)
     clean_query = q["clean_query"]
 
-    # Memory update from query
+    # Update long-term preferences (categories, price sensitivity)
     pipeline.memory_agent.update_preferences_from_query(clean_query, q["product_type"])
 
+    # Update inferred country memory
+    country = q.get("country")
+    if country:
+        pipeline.memory_agent.update_inferred({"inferred_country": country})
+        pipeline.memory_agent.add_candidate_country(country)
+
+    # Build allowed_ids (Hard Filters)
     allowed_ids = None
-    if q["has_price_constraint"] and q["max_price"] is not None:
+
+    # Country filter
+    if q.get("country"):
+        country = q["country"]
         allowed_ids = set(
+            pipeline.retrieval_agent.metadata[
+                pipeline.retrieval_agent.metadata["country"] == country
+            ]["variant_id"].astype(str)
+        )
+
+    # Numeric price constraint (combine with country if both exist)
+    if q["has_price_constraint"] and q["max_price"] is not None:
+        price_filtered = set(
             pipeline.retrieval_agent.metadata[
                 pipeline.retrieval_agent.metadata["price"] <= q["max_price"]
             ]["variant_id"].astype(str)
         )
+        allowed_ids = price_filtered if allowed_ids is None else allowed_ids & price_filtered
 
-    # Retrieval
+    # Hybrid Retrieval
     candidates = pipeline.retrieval_agent.run(q, allowed_ids=allowed_ids)
 
-    # Final reranking
-    final_results = pipeline.reranker.run(clean_query, candidates)
+    # Pass full query_info so reranker can use price_level intent
+    final_results = pipeline.reranker.run(q, candidates)
     final_results.sort(key=lambda x: x["score"], reverse=True)
 
-    # Memory updates
+    # Memory Updates
     pipeline.memory_agent.add_short_term(clean_query, final_results)
     pipeline.memory_agent.log_activity(clean_query, [r["variant_id"] for r in final_results])
 
