@@ -3,61 +3,78 @@ category_keywords:
   - electronics
   - home appliances
 
-synonyms:
-  bulb: ["bulb", "light", "lamp", "smart bulb"]
-  led: ["led", "led light", "led bulb"]
-
-  headphones: ["headphones", "earphones", "headset", "buds"]
-  earphones: ["earphones", "earbuds"]
-
-  speaker: ["speaker", "bluetooth speaker", "wireless speaker"]
-
-  laptop: ["laptop", "notebook", "computer"]
-  printer: ["printer", "inkjet printer", "laser printer"]
-  monitor: ["monitor", "display", "screen"]
-
-  blender: ["blender", "mixer"]
-  coffee maker: ["coffee maker", "coffee machine"]
-  vacuum: ["vacuum", "vacuum cleaner"]
-
-  hedphones: ["headphones"]
-  prnter: ["printer"]
-  blub: ["bulb"]
-
 # Price bands
 price_bands:
   electronics:
-    low: [0, 50]
-    medium: [50, 200]
-    high: [200, 99999]
+    low: [0, 100]
+    medium: [100, 300]
+    high: [300, 99999]
 
   home_appliances:
     low: [0, 100]
     medium: [100, 300]
     high: [300, 99999]
 
-# Rules for interpreting user query
+# Country currency extraction rules
+currency_rules:
+  symbols:
+    - "$"
+    - "€"
+    - "£"
+    - "¥"
+    - "₹"
+    - "₩"
+    - "₦"
+    - "₽"
+    - "₱"
+
+
+# Query interpretation rules
 query_rules:
   short_query_is_product: true
 
-  detect_price_intent:
+  low_price_intent:
     - "cheap"
     - "budget"
     - "affordable"
     - "low cost"
+    - "low price"
+    - "economical"
+    - "value"
+
+  mid_price_intent:
+    - "mid range"
+    - "mid-range"
+    - "mid tier"
+    - "mid-tier"
+    - "reasonable"
+    - "value for money"
+
+  high_price_intent:
+    - "premium"
+    - "luxury"
+    - "high-end"
+    - "high end"
+    - "high quality"
+    - "flagship"
+    - "pro"
+    - "professional"
+    - "elite"
+    - "ultimate"
+    - "top-tier"
+    - "top tier"
+    - "top"
+    - "best"
+    - "expensive"
+    - "deluxe"
+
+  numeric_price_triggers:
     - "under"
     - "below"
     - "less than"
 
-  detect_quality_intent:
-    - "best"
-    - "top"
-    - "latest"
-    - "high quality"
 
-  detect_model_number: true
-
-# Text normalization rules applied before retrieval
+# Text normalization rules
 normalization_rules:
   lowercase: true
   remove_hyphens: true
