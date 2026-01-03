@@ -4,9 +4,9 @@
 Embedding pipeline for the e‑commerce dataset.
 
 This script loads configuration, ensures raw data is available, prepares
-canonical product text, chunks it, generates embeddings, and writes out
-all related metadata. The goal is to keep the workflow simple, predictable,
-and easy to rerun.
+canonical product text, generates embeddings, and writes out all related
+metadata. The goal is to keep the workflow simple, predictable, and easy
+to rerun.
 """
 
 import json
@@ -18,12 +18,10 @@ from typing import Tuple
 import yaml
 import numpy as np
 import pandas as pd
-from tqdm import tqdm
 from sentence_transformers import SentenceTransformer
-from sqlalchemy import create_engine, MetaData, Table, Column, String, Integer, Float, Engine
+from sqlalchemy import create_engine, MetaData, Table, Column, String, Float, Engine
 
 from embeddings_pipeline.download_datasets import download_and_copy
-
 from logging_config import setup_logging
 
 # Use the shared logging configuration so logs go to embeddings.log
@@ -33,7 +31,7 @@ logger = logging.getLogger(__name__)
 
 class EmbeddingPipeline:
     def __init__(self, config_path: Path = Path("configs/config_embedding.yaml")):
-        """Runs the full embedding workflow."""
+        """Initialize the embedding pipeline with configuration."""
         self.cfg = self._load_config(config_path)
         self.paths = self.cfg["paths"]
         self.model_cfg = self.cfg["model"]
@@ -48,12 +46,12 @@ class EmbeddingPipeline:
             return yaml.safe_load(f)
 
     def ensure_raw_data(self) -> tuple[Path, Path]:
-        """Make sure raw product CSV files exist. Download them if missing."""
+        """Ensure raw product CSV files exist. Download them if missing."""
         raw_dir = Path(self.paths["raw_dir"])
         raw_dir.mkdir(parents=True, exist_ok=True)
 
-        purchase_csv = raw_dir / "customer_purchase_data.csv"
-        reviews_csv = raw_dir / "customer_reviews_data.csv"
+        purchase_csv = raw_dir / self.paths["purchase_csv"]
+        reviews_csv = raw_dir / self.paths["reviews_csv"]
 
         if purchase_csv.exists() and reviews_csv.exists():
             logger.info(f"Raw data found in {raw_dir}")
@@ -80,12 +78,14 @@ class EmbeddingPipeline:
         meta = MetaData()
 
         table = Table(
-            "chunks", meta,   # keeping your table name
+            "chunks", meta,
             Column("variant_id", String, primary_key=True),
             Column("product_id", String, index=True),
             Column("text", String),
             Column("product_name", String),
             Column("category", String),
+            Column("country", String),
+            Column("price_level", String),
             Column("price", Float),
             Column("embed_model", String),
             Column("created_at", Float),
@@ -94,25 +94,86 @@ class EmbeddingPipeline:
         meta.create_all(engine)
         return engine, table
 
-    def validate_embeddings(self, embeddings: np.ndarray, texts: list[str]) -> None:
-        """
-        Validate the embedding matrix before saving or building a FAISS index.
-        """
+    def normalize_price_by_country(self, purchases: pd.DataFrame) -> pd.DataFrame:
+        """Normalize unit price within each country and assign price_level buckets."""
+        logger.info("Normalizing price by country...")
 
+        purchases["unit_price"] = (
+            purchases["PurchasePrice"] / purchases["PurchaseQuantity"]
+        )
+
+        def _normalize(group: pd.DataFrame) -> pd.DataFrame:
+            p = group["unit_price"]
+            p_min, p_max = p.min(), p.max()
+            if p_max == p_min:
+                group["unit_price_norm"] = 0.5
+            else:
+                group["unit_price_norm"] = (p - p_min) / (p_max - p_min)
+            return group
+
+        purchases = purchases.groupby("Country", group_keys=False).apply(_normalize)
+
+        def bucket(x: float) -> str:
+            if x <= 0.33:
+                return "Low"
+            elif x <= 0.66:
+                return "Mid"
+            return "High"
+
+        purchases["price_level"] = purchases["unit_price_norm"].apply(bucket)
+        return purchases
+
+    def prepare_reviews(self, reviews: pd.DataFrame) -> pd.DataFrame:
+        """
+        Aggregate reviews by ProductID using unique reviews, top-N selection,
+        and max_chars truncation. This keeps review text compact and avoids
+        overweighting repeated content.
+        """
+        logger.info("Preparing aggregated review text...")
+
+        max_reviews = self.embed_cfg.get("max_reviews", 5)
+        max_chars = self.embed_cfg["max_review_chars"]
+
+        def combine_reviews(series):
+            unique_reviews = series.unique()
+            selected = unique_reviews[:max_reviews]
+            combined = " ".join(selected)
+            return combined[:max_chars]
+
+        review_texts = (
+            reviews.groupby("ProductID")["ReviewText"]
+            .apply(combine_reviews)
+            .reset_index()
+            .rename(columns={"ReviewText": "AllReviews"})
+        )
+        return review_texts
+
+    def validate_embeddings(self, embeddings: np.ndarray, texts: list[str]) -> None:
+        """Validate the embedding matrix before saving or building a FAISS index."""
         logger.info("Validating embedding matrix...")
 
+        # Structural checks
         if embeddings.ndim != 2:
             raise ValueError(f"Expected a 2D embedding matrix, got shape {embeddings.shape}")
 
         if embeddings.shape[0] != len(texts):
             raise ValueError(f"Embedding count mismatch: {embeddings.shape[0]} embeddings for {len(texts)} texts")
 
+        # Numerical integrity checks
         if np.isnan(embeddings).any():
             raise ValueError("Embeddings contain NaN values")
 
         if not np.isfinite(embeddings).all():
             raise ValueError("Embeddings contain non‑finite values")
 
+        # Zero-vector detection
+        if (np.linalg.norm(embeddings, axis=1) == 0).any():
+            raise ValueError("Zero-vector embeddings detected.")
+
+        # Abnormal norm detection
+        norms = np.linalg.norm(embeddings, axis=1)
+        if (norms < 1e-6).any() or (norms > 1000).any():
+            raise ValueError("Abnormal embedding norms detected.")
         logger.info(f"Embedding validation passed. Shape={embeddings.shape}, dtype={embeddings.dtype}")
 
     def write_metadata(self, engine: Engine, table: Table, rows: list[dict]) -> None:
@@ -133,57 +194,58 @@ class EmbeddingPipeline:
         metadata_db = Path(self.paths["metadata_db"])
         manifest_json = Path(self.paths["manifest_json"])
 
-        # Ensure raw data exists
         purchase_csv, reviews_csv = self.ensure_raw_data()
 
-        # Skip if embeddings already exist and version matches
         if embeddings_npz.exists() and self.manifest_matches(manifest_json):
             logger.info("Embeddings already exist and version matches. Skipping.")
             return
 
-        # Load data
         logger.info("Loading purchase data...")
         purchases = pd.read_csv(purchase_csv).fillna("")
+        purchases = self.normalize_price_by_country(purchases)
 
         logger.info("Loading review data...")
         reviews = pd.read_csv(reviews_csv).fillna("")
 
-        review_texts = (
-            reviews.groupby("ProductID")["ReviewText"]
-            .apply(lambda x: " ".join(x))
-            .reset_index()
-            .rename(columns={"ReviewText": "AllReviews"})
-        )
+        # Prepare aggregated review text
+        review_texts = self.prepare_reviews(reviews)
 
+        # Join general reviews back to all purchase rows (variants)
         df = purchases.merge(review_texts, on="ProductID", how="left")
         df["AllReviews"] = df["AllReviews"].fillna("")
 
-        # Drop products with no reviews at all
+        # Drop products with no reviews
         df = df[df["AllReviews"].str.strip() != ""]
         logger.info(f"Filtered out products with no reviews. Remaining products: {len(df)}")
 
-        # FIX: KEEP ALL VARIANTS — assign unique variant_id
-        df["variant_id"] = df.index.astype(str)
-        logger.info(f"Assigned unique variant_id to all {len(df)} variants")
+        # VirtualID = ProductID + ProductName + Country
+        df["variant_id"] = (
+            df["ProductID"].astype(str)
+            + "_"
+            + df["ProductName"].astype(str).str.replace(" ", "_")
+            + "_"
+            + df["Country"].astype(str)
+        )
 
-        # Cap overly long review text
-        max_chars = self.embed_cfg["max_review_chars"]
-        df["AllReviews"] = df["AllReviews"].str[:max_chars]
-        logger.info("Capped review text to max_review_chars=%d", max_chars)
+        logger.info(f"Assigned VirtualID-based variant_id to all {len(df)} variants")
 
+        # Canonical text
         df["canonical_text"] = (
             df["ProductName"].astype(str)
             + " | "
             + df["ProductCategory"].astype(str)
-            + " | "
+            + " | country: "
+            + df["Country"].astype(str)
+            + " | price_level: "
+            + df["price_level"].astype(str)
+            + " | General reviews for ProductID "
+            + df["ProductID"].astype(str)
+            + ": "
             + df["AllReviews"].astype(str)
         )
 
-        # FIX: one embedding per VARIANT
-        logger.info("Building variant-level text (no chunking)...")
         variant_texts = df["canonical_text"].tolist()
 
-        # Embeddings
         logger.info("Loading embedding model: %s", self.model_cfg["name"])
         model = SentenceTransformer(self.model_cfg["name"])
 
@@ -194,26 +256,21 @@ class EmbeddingPipeline:
             show_progress_bar=False
         ).astype(np.float32)
 
-        # Validate embeddings
         self.validate_embeddings(embeddings, variant_texts)
 
-        # Save embeddings
         tmp = embed_dir / f"tmp_{int(time.time())}.npz"
         np.savez_compressed(tmp, embeddings=embeddings)
         tmp.replace(embeddings_npz)
 
-        # Mapping: variant_id → embedding index
         mapping = df[["variant_id", "ProductID"]].copy()
         mapping = mapping.rename(columns={"ProductID": "product_id"})
         mapping["embedding_index"] = range(len(mapping))
         mapping.to_parquet(mapping_parquet, index=False)
 
-        # Metadata DB: one row per variant
         engine, table = self.init_metadata_db(metadata_db)
-        meta_rows = []
+        meta_rows: list[dict] = []
 
         for _, row in df.iterrows():
-            # Compute actual price instead of the product
             unit_price = float(row["PurchasePrice"]) / float(row["PurchaseQuantity"])
 
             meta_rows.append({
@@ -222,6 +279,8 @@ class EmbeddingPipeline:
                 "text": row["canonical_text"],
                 "product_name": row["ProductName"],
                 "category": row["ProductCategory"],
+                "country": row["Country"],
+                "price_level": row["price_level"],
                 "price": round(unit_price, 2),
                 "embed_model": self.model_cfg["version"],
                 "created_at": time.time(),
