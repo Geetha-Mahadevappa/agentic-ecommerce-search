@@ -1,0 +1,6 @@
+{
+  "p99_latency_ms": 3773.136148452758,
+  "ndcg@10": 0.27225041073290074,
+  "zero_result_rate": 0.09333333333333334,
+  "conversion_per_search": 0.812
+}
