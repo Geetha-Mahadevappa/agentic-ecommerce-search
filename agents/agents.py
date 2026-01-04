@@ -491,7 +491,7 @@ class RerankerAgent:
 
             prompt = "\n".join(prompt_lines)
 
-            text_response = self.llm_client.generate(prompt, max_tokens=128).strip()
+            text_response = self.llm_client.generate(prompt, max_tokens=self.llm_client.max_new_tokens).strip()
 
             start = text_response.find("[RESULT START]")
             end = text_response.find("[RESULT END]")
