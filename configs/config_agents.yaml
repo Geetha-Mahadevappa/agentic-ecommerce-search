@@ -11,15 +11,19 @@ paths:
   procedural_memory_yaml: "data/memory/procedural_memory.yaml"
   activity_log_json: "data/memory/activity_log.json"
 
+# Embedding model for query encoding
 model:
-  # Embedding model for query encoding
   name:  "all-mpnet-base-v2"
   device: "cuda"
 
+# LLM model for reranking
 llm:
   model_name: "Qwen/Qwen2-1.5B-Instruct"
   device: "cuda"        # cpu or cuda
   max_new_tokens: 128
+  use_pipeline: false
+  dtype: float16
+  batch_size: 4
 
 retrieval:
   hard_filters: ["country", "price_level"] # Metadata fields available for hard filtering
@@ -29,6 +33,9 @@ retrieval:
   hybrid_weights:
     vector: 0.7
     bm25: 0.3
+
+reranker:
+  score_cutoff_ratio: 0.10
 
 search:
   faiss_top_k: 100        # how many candidates to pull from FAISS
