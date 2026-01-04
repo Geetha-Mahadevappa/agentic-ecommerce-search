@@ -123,40 +123,42 @@ class QueryUnderstandingAgent:
 
         has_price_words = False
         price_level = None
+        max_price = None
 
-        # Low price intent
+        # Detect price-level words
         if any(key in text for key in self.low_price_intent):
             price_level = "Low"
             has_price_words = True
-
-        # High price intent
         elif any(key in text for key in self.high_price_intent):
             price_level = "High"
             has_price_words = True
-
-        # Mid-range intent
         elif any(key in text for key in self.mid_price_intent):
             price_level = "Mid"
             has_price_words = True
 
-        # Numeric triggers
-        if any(key in text for key in self.numeric_price_triggers):
-            has_price_words = True
-
-        # Extract numeric max_price
-        cleaned = text
-        for sym in self.currency_symbols:
-            cleaned = cleaned.replace(sym, " ")
-
-        tokens = cleaned.split()
-        max_price = None
-        for t in tokens:
-            try:
-                max_price = float(t)
+        # Detect numeric price triggers
+        trigger_found = None
+        for trig in self.numeric_price_triggers:
+            if trig in text:
+                trigger_found = trig
+                has_price_words = True
                 break
-            except ValueError:
-                continue
 
+        # Only extract numeric price if a trigger is present
+        if trigger_found:
+            cleaned = text
+            for sym in self.currency_symbols:
+                cleaned = cleaned.replace(sym, " ")
+
+
+            tokens = cleaned.split()
+            for i, tok in enumerate(tokens):
+                if tok == trigger_found and i + 1 < len(tokens):
+                    try:
+                        max_price = float(tokens[i + 1])
+                    except ValueError:
+                        pass
+                    break
         return has_price_words, max_price, price_level
 
     def _infer_country(self, cleaned: str) -> Optional[str]:
@@ -402,6 +404,7 @@ class RerankerAgent:
     memory_agent: Any
     llm_client: Any
     final_top_k: int = 10
+    score_cutoff_ratio: float = 0.50   # NEW: configurable score cutoff
 
     def _fetch_metadata_batch(self, variant_ids: List[str]) -> Dict[str, Dict[str, Any]]:
         """
@@ -539,6 +542,12 @@ class RerankerAgent:
 
         enriched = self._apply_metadata(candidates)
         enriched.sort(key=lambda x: x["score"], reverse=True)
+
+        # Score cutoff filtering
+        if enriched:
+            top_score = enriched[0]["score"]
+            cutoff = top_score * self.score_cutoff_ratio
+            enriched = [item for item in enriched if item["score"] >= cutoff]
 
         # Query-specific price level takes precedence
         price_level = query_info.get("price_level")
