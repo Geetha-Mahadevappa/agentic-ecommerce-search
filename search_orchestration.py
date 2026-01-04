@@ -55,7 +55,9 @@ class LLMConfig:
     model_name: str
     device: str
     max_new_tokens: int
-
+    use_pipeline: bool
+    dtype: str
+    batch_size: int
 
 @dataclass
 class SearchConfig:
