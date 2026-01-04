@@ -19,7 +19,7 @@ model:
 llm:
   model_name: "Qwen/Qwen2-1.5B-Instruct"
   device: "cuda"        # cpu or cudapy
-  max_new_tokens: 32clea
+  max_new_tokens: 32
   use_pipeline: false
   dtype: float16
   batch_size: 1
