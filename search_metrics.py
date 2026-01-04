@@ -22,7 +22,9 @@ from typing import List, Dict
 
 import numpy as np
 import pandas as pd
+
 from search_orchestration import build_search_pipeline, run_search
+
 
 class SearchEvaluator:
     """
@@ -104,9 +106,10 @@ class SearchEvaluator:
 
             self.query_log.write(query + "\n")
 
-            start = time.time()
+            # Use time.perf_counter() for accurate p99 measurement.
+            start = time.perf_counter()
             raw_results = self.orchestrator(query)
-            latency_ms = (time.time() - start) * 1000
+            latency_ms = (time.perf_counter() - start) * 1000
             latencies.append(latency_ms)
 
             found_pids = [
@@ -220,7 +223,6 @@ def build_eval_data(purchase_df: pd.DataFrame, review_df: pd.DataFrame, sample_s
                 "purchased": purchased_pid,
             }
         )
-
     return eval_data
 
 if __name__ == "__main__":
@@ -228,7 +230,6 @@ if __name__ == "__main__":
     pipeline = build_search_pipeline("configs/config_agents.yaml")
 
     def orchestrator_fn(query: str):
-        """Wrapper around run_search that returns only the results list."""
         output = run_search(pipeline, query)
         return output["results"]
 
