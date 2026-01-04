@@ -14,12 +14,7 @@ logger = logging.getLogger(__name__)
 
 
 class LLMClient:
-    def __init__(
-        self,
-        model_name: str,
-        device: str = "cpu",
-        max_new_tokens: int = 128,
-    ):
+    def __init__(self, model_name: str, max_new_tokens: int, device: str = "cpu",):
         logger.info(f"Initializing LLMClient with model '{model_name}' on device '{device}'")
 
         self.model_name = model_name
@@ -59,7 +54,7 @@ class LLMClient:
 
     def generate(self, prompt: str, max_tokens: int = None) -> str:
         """Generate a deterministic completion for reranking."""
-        max_new = max_tokens or self.max_new_tokens
+        max_new = self.max_new_tokens if max_tokens is None else max_tokens
         logger.info(f"LLMClient.generate called (prompt_length={len(prompt)}, max_new_tokens={max_new})")
 
         try:
