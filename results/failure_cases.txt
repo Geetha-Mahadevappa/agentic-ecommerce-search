@@ -1,0 +1,144 @@
+QUERY: Tablet Electronics in Wallis and Futuna
+Purchased ProductID: 299
+Returned ProductIDs: []
+nDCG@10: 0.0000
+Conversion Score: 0.00
+------------------------------------------------------------
+QUERY: Toaster Home Appliances in Lao People's Democratic Republic
+Purchased ProductID: 240
+Returned ProductIDs: []
+nDCG@10: 0.0000
+Conversion Score: 0.00
+------------------------------------------------------------
+QUERY: Laptop Electronics in Argentina
+Purchased ProductID: 290
+Returned ProductIDs: []
+nDCG@10: 0.0000
+Conversion Score: 0.00
+------------------------------------------------------------
+QUERY: high-end Microwave Home Appliances in French Polynesia
+Purchased ProductID: 293
+Returned ProductIDs: ['223', '261']
+nDCG@10: 0.2201
+Conversion Score: 0.00
+------------------------------------------------------------
+QUERY: budget Tablet Electronics in Tunisia
+Purchased ProductID: 295
+Returned ProductIDs: ['218']
+nDCG@10: 0.2201
+Conversion Score: 0.00
+------------------------------------------------------------
+QUERY: Washing Machine Home Appliances in Trinidad and Tobago
+Purchased ProductID: 248
+Returned ProductIDs: []
+nDCG@10: 0.0000
+Conversion Score: 0.00
+------------------------------------------------------------
+QUERY: top tier Heater Home Appliances in Somalia
+Purchased ProductID: 215
+Returned ProductIDs: []
+nDCG@10: 0.0000
+Conversion Score: 0.00
+------------------------------------------------------------
+QUERY: Refrigerator Home Appliances in Isle of Man
+Purchased ProductID: 244
+Returned ProductIDs: []
+nDCG@10: 0.0000
+Conversion Score: 0.00
+------------------------------------------------------------
+QUERY: Toaster Home Appliances in Wallis and Futuna
+Purchased ProductID: 260
+Returned ProductIDs: []
+nDCG@10: 0.0000
+Conversion Score: 0.00
+------------------------------------------------------------
+QUERY: Laptop Electronics in Faroe Islands
+Purchased ProductID: 218
+Returned ProductIDs: ['271', '270']
+nDCG@10: 0.0000
+Conversion Score: 0.00
+------------------------------------------------------------
+QUERY: below 200 Heater Home Appliances in Macedonia
+Purchased ProductID: 270
+Returned ProductIDs: ['293']
+nDCG@10: 0.2201
+Conversion Score: 0.00
+------------------------------------------------------------
+QUERY: affordable Electric Kettle Home Appliances in Heard Island and McDonald Islands
+Purchased ProductID: 284
+Returned ProductIDs: []
+nDCG@10: 0.0000
+Conversion Score: 0.00
+------------------------------------------------------------
+QUERY: affordable Coffee Maker Home Appliances in Angola
+Purchased ProductID: 241
+Returned ProductIDs: ['253']
+nDCG@10: 0.2201
+Conversion Score: 0.00
+------------------------------------------------------------
+QUERY: Washing Machine Home Appliances in Cote d'Ivoire
+Purchased ProductID: 252
+Returned ProductIDs: []
+nDCG@10: 0.0000
+Conversion Score: 0.00
+------------------------------------------------------------
+QUERY: Coffee Maker Home Appliances in South Georgia and the South Sandwich Islands
+Purchased ProductID: 236
+Returned ProductIDs: ['243']
+nDCG@10: 0.2201
+Conversion Score: 0.00
+------------------------------------------------------------
+QUERY: high-end Smart Bulb Electronics in Algeria
+Purchased ProductID: 256
+Returned ProductIDs: ['238']
+nDCG@10: 0.2201
+Conversion Score: 0.00
+------------------------------------------------------------
+QUERY: Laptop Electronics in South Georgia and the South Sandwich Islands
+Purchased ProductID: 285
+Returned ProductIDs: ['290']
+nDCG@10: 0.2201
+Conversion Score: 0.00
+------------------------------------------------------------
+QUERY: budget Washing Machine Home Appliances in Uzbekistan
+Purchased ProductID: 282
+Returned ProductIDs: []
+nDCG@10: 0.0000
+Conversion Score: 0.00
+------------------------------------------------------------
+QUERY: Refrigerator Home Appliances in Antarctica (the territory South of 60 deg S)
+Purchased ProductID: 264
+Returned ProductIDs: []
+nDCG@10: 0.0000
+Conversion Score: 0.00
+------------------------------------------------------------
+QUERY: cheap Headphones Electronics in Tuvalu
+Purchased ProductID: 204
+Returned ProductIDs: []
+nDCG@10: 0.0000
+Conversion Score: 0.00
+------------------------------------------------------------
+QUERY: Microwave Home Appliances in Saint Pierre and Miquelon
+Purchased ProductID: 237
+Returned ProductIDs: []
+nDCG@10: 0.0000
+Conversion Score: 0.00
+------------------------------------------------------------
+QUERY: Camera Electronics in Guinea-Bissau
+Purchased ProductID: 278
+Returned ProductIDs: ['206']
+nDCG@10: 0.0000
+Conversion Score: 0.00
+------------------------------------------------------------
+QUERY: mid range Printer Electronics in Saint Barthelemy
+Purchased ProductID: 228
+Returned ProductIDs: []
+nDCG@10: 0.0000
+Conversion Score: 0.00
+------------------------------------------------------------
+QUERY: Laptop Electronics in Colombia
+Purchased ProductID: 268
+Returned ProductIDs: ['245']
+nDCG@10: 0.0000
+Conversion Score: 0.00
+------------------------------------------------------------

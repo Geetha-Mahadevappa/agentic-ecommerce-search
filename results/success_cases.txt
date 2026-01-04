@@ -1,0 +1,756 @@
+QUERY: Smart Bulb Electronics in Nauru
+Purchased ProductID: 222
+Returned ProductIDs: ['257', '222']
+nDCG@10: 0.3590
+Conversion Score: 0.70
+------------------------------------------------------------
+QUERY: Smart Bulb Electronics in India
+Purchased ProductID: 225
+Returned ProductIDs: ['225']
+nDCG@10: 0.2201
+Conversion Score: 1.00
+------------------------------------------------------------
+QUERY: Washing Machine Home Appliances in Palau
+Purchased ProductID: 263
+Returned ProductIDs: ['263']
+nDCG@10: 0.2201
+Conversion Score: 1.00
+------------------------------------------------------------
+QUERY: Headphones Electronics in Brazil
+Purchased ProductID: 223
+Returned ProductIDs: ['223', '266', '250']
+nDCG@10: 0.2201
+Conversion Score: 1.00
+------------------------------------------------------------
+QUERY: Smartphone Electronics in Barbados
+Purchased ProductID: 232
+Returned ProductIDs: ['232', '205', '213', '240', '220']
+nDCG@10: 0.4441
+Conversion Score: 1.00
+------------------------------------------------------------
+QUERY: Microwave Home Appliances in Bhutan
+Purchased ProductID: 289
+Returned ProductIDs: ['289', '238', '244']
+nDCG@10: 0.4690
+Conversion Score: 1.00
+------------------------------------------------------------
+QUERY: Coffee Maker Home Appliances in Myanmar
+Purchased ProductID: 246
+Returned ProductIDs: ['248', '246', '296']
+nDCG@10: 0.3590
+Conversion Score: 0.70
+------------------------------------------------------------
+QUERY: Air Conditioner Home Appliances in Norfolk Island
+Purchased ProductID: 263
+Returned ProductIDs: ['263']
+nDCG@10: 0.2201
+Conversion Score: 1.00
+------------------------------------------------------------
+QUERY: Refrigerator Home Appliances in Eritrea
+Purchased ProductID: 216
+Returned ProductIDs: ['216', '231', '294']
+nDCG@10: 0.3590
+Conversion Score: 1.00
+------------------------------------------------------------
+QUERY: Smartwatch Electronics in Bangladesh
+Purchased ProductID: 230
+Returned ProductIDs: ['230', '202', '276']
+nDCG@10: 0.2201
+Conversion Score: 1.00
+------------------------------------------------------------
+QUERY: Smartwatch Electronics in Ireland
+Purchased ProductID: 260
+Returned ProductIDs: ['283', '260', '245']
+nDCG@10: 0.3590
+Conversion Score: 0.70
+------------------------------------------------------------
+QUERY: Tablet Electronics in Germany
+Purchased ProductID: 290
+Returned ProductIDs: ['290', '213']
+nDCG@10: 0.2201
+Conversion Score: 1.00
+------------------------------------------------------------
+QUERY: Router Electronics in Poland
+Purchased ProductID: 288
+Returned ProductIDs: ['288', '227', '283']
+nDCG@10: 0.3301
+Conversion Score: 1.00
+------------------------------------------------------------
+QUERY: Heater Home Appliances in French Southern Territories
+Purchased ProductID: 287
+Returned ProductIDs: ['287', '296', '284', '252']
+nDCG@10: 0.4249
+Conversion Score: 1.00
+------------------------------------------------------------
+QUERY: less than 500 Air Conditioner Home Appliances in Aruba
+Purchased ProductID: 223
+Returned ProductIDs: ['223']
+nDCG@10: 0.2201
+Conversion Score: 1.00
+------------------------------------------------------------
+QUERY: mid priced Laptop Electronics in Azerbaijan
+Purchased ProductID: 252
+Returned ProductIDs: ['252']
+nDCG@10: 0.2201
+Conversion Score: 1.00
+------------------------------------------------------------
+QUERY: Washing Machine Home Appliances in Tanzania
+Purchased ProductID: 212
+Returned ProductIDs: ['212']
+nDCG@10: 0.2201
+Conversion Score: 1.00
+------------------------------------------------------------
+QUERY: Smartphone Electronics in Micronesia
+Purchased ProductID: 284
+Returned ProductIDs: ['240', '284', '295', '252']
+nDCG@10: 0.3437
+Conversion Score: 0.70
+------------------------------------------------------------
+QUERY: Tablet Electronics in Romania
+Purchased ProductID: 205
+Returned ProductIDs: ['205', '275', '283', '248']
+nDCG@10: 0.4249
+Conversion Score: 1.00
+------------------------------------------------------------
+QUERY: less than 300 Tablet Electronics in Egypt
+Purchased ProductID: 241
+Returned ProductIDs: ['294', '241', '214']
+nDCG@10: 0.2489
+Conversion Score: 0.70
+------------------------------------------------------------
+QUERY: Smart Bulb Electronics in Saint Barthelemy
+Purchased ProductID: 217
+Returned ProductIDs: ['217', '228', '203', '215']
+nDCG@10: 0.4690
+Conversion Score: 1.00
+------------------------------------------------------------
+QUERY: Refrigerator Home Appliances in Indonesia
+Purchased ProductID: 271
+Returned ProductIDs: ['272', '271', '221']
+nDCG@10: 0.3590
+Conversion Score: 0.70
+------------------------------------------------------------
+QUERY: Heater Home Appliances in Japan
+Purchased ProductID: 242
+Returned ProductIDs: ['242', '235', '250']
+nDCG@10: 0.4690
+Conversion Score: 1.00
+------------------------------------------------------------
+QUERY: Television Electronics in Timor-Leste
+Purchased ProductID: 203
+Returned ProductIDs: ['203', '260', '273']
+nDCG@10: 0.2201
+Conversion Score: 1.00
+------------------------------------------------------------
+QUERY: less than 500 Smartwatch Electronics in Cuba
+Purchased ProductID: 219
+Returned ProductIDs: ['219']
+nDCG@10: 0.2201
+Conversion Score: 1.00
+------------------------------------------------------------
+QUERY: Headphones Electronics in Iran
+Purchased ProductID: 204
+Returned ProductIDs: ['204', '227', '241']
+nDCG@10: 0.3301
+Conversion Score: 1.00
+------------------------------------------------------------
+QUERY: Smartwatch Electronics in Sweden
+Purchased ProductID: 231
+Returned ProductIDs: ['231', '222']
+nDCG@10: 0.3590
+Conversion Score: 1.00
+------------------------------------------------------------
+QUERY: value for money Smartphone Electronics in Zambia
+Purchased ProductID: 262
+Returned ProductIDs: ['262']
+nDCG@10: 0.2201
+Conversion Score: 1.00
+------------------------------------------------------------
+QUERY: Microwave Home Appliances in United Kingdom
+Purchased ProductID: 292
+Returned ProductIDs: ['292', '203', '295']
+nDCG@10: 0.2201
+Conversion Score: 1.00
+------------------------------------------------------------
+QUERY: Tablet Electronics in Northern Mariana Islands
+Purchased ProductID: 268
+Returned ProductIDs: ['268', '299']
+nDCG@10: 0.3590
+Conversion Score: 1.00
+------------------------------------------------------------
+QUERY: Heater Home Appliances in Italy
+Purchased ProductID: 254
+Returned ProductIDs: ['254', '238', '201', '208']
+nDCG@10: 0.4690
+Conversion Score: 1.00
+------------------------------------------------------------
+QUERY: Coffee Maker Home Appliances in Maldives
+Purchased ProductID: 237
+Returned ProductIDs: ['237']
+nDCG@10: 0.2201
+Conversion Score: 1.00
+------------------------------------------------------------
+QUERY: Heater Home Appliances in Vietnam
+Purchased ProductID: 201
+Returned ProductIDs: ['201', '269', '291']
+nDCG@10: 0.2201
+Conversion Score: 1.00
+------------------------------------------------------------
+QUERY: Microwave Home Appliances in Venezuela
+Purchased ProductID: 209
+Returned ProductIDs: ['209', '242', '242', '224', '224', '200']
+nDCG@10: 0.4690
+Conversion Score: 1.00
+------------------------------------------------------------
+QUERY: Heater Home Appliances in Belize
+Purchased ProductID: 251
+Returned ProductIDs: ['251']
+nDCG@10: 0.2201
+Conversion Score: 1.00
+------------------------------------------------------------
+QUERY: Microwave Home Appliances in Nepal
+Purchased ProductID: 232
+Returned ProductIDs: ['232', '266', '211']
+nDCG@10: 0.3590
+Conversion Score: 1.00
+------------------------------------------------------------
+QUERY: Tablet Electronics in Cyprus
+Purchased ProductID: 278
+Returned ProductIDs: ['278', '297']
+nDCG@10: 0.2201
+Conversion Score: 1.00
+------------------------------------------------------------
+QUERY: Smart Bulb Electronics in Serbia
+Purchased ProductID: 262
+Returned ProductIDs: ['262']
+nDCG@10: 0.2201
+Conversion Score: 1.00
+------------------------------------------------------------
+QUERY: Air Conditioner Home Appliances in Ecuador
+Purchased ProductID: 272
+Returned ProductIDs: ['272', '294']
+nDCG@10: 0.2201
+Conversion Score: 1.00
+------------------------------------------------------------
+QUERY: Printer Electronics in Oman
+Purchased ProductID: 247
+Returned ProductIDs: ['247', '297']
+nDCG@10: 0.2201
+Conversion Score: 1.00
+------------------------------------------------------------
+QUERY: Tablet Electronics in Uruguay
+Purchased ProductID: 233
+Returned ProductIDs: ['233', '216']
+nDCG@10: 0.2201
+Conversion Score: 1.00
+------------------------------------------------------------
+QUERY: Refrigerator Home Appliances in Holy See (Vatican City State)
+Purchased ProductID: 266
+Returned ProductIDs: ['266', '234']
+nDCG@10: 0.3590
+Conversion Score: 1.00
+------------------------------------------------------------
+QUERY: Smartwatch Electronics in Bhutan
+Purchased ProductID: 261
+Returned ProductIDs: ['261', '263', '286', '287', '232']
+nDCG@10: 0.3052
+Conversion Score: 1.00
+------------------------------------------------------------
+QUERY: Air Conditioner Home Appliances in Afghanistan
+Purchased ProductID: 282
+Returned ProductIDs: ['282']
+nDCG@10: 0.2201
+Conversion Score: 1.00
+------------------------------------------------------------
+QUERY: Vacuum Cleaner Home Appliances in Poland
+Purchased ProductID: 202
+Returned ProductIDs: ['202']
+nDCG@10: 0.2201
+Conversion Score: 1.00
+------------------------------------------------------------
+QUERY: Television Electronics in Armenia
+Purchased ProductID: 247
+Returned ProductIDs: ['247', '280', '242']
+nDCG@10: 0.2201
+Conversion Score: 1.00
+------------------------------------------------------------
+QUERY: Television Electronics in Norfolk Island
+Purchased ProductID: 246
+Returned ProductIDs: ['246', '223']
+nDCG@10: 0.3590
+Conversion Score: 1.00
+------------------------------------------------------------
+QUERY: Headphones Electronics in Indonesia
+Purchased ProductID: 257
+Returned ProductIDs: ['257', '285']
+nDCG@10: 0.3590
+Conversion Score: 1.00
+------------------------------------------------------------
+QUERY: Smartphone Electronics in Timor-Leste
+Purchased ProductID: 260
+Returned ProductIDs: ['260', '273', '203']
+nDCG@10: 0.3301
+Conversion Score: 1.00
+------------------------------------------------------------
+QUERY: Air Conditioner Home Appliances in Guernsey
+Purchased ProductID: 298
+Returned ProductIDs: ['298']
+nDCG@10: 0.2201
+Conversion Score: 1.00
+------------------------------------------------------------
+QUERY: Smartwatch Electronics in Korea
+Purchased ProductID: 260
+Returned ProductIDs: ['260', '211']
+nDCG@10: 0.2201
+Conversion Score: 1.00
+------------------------------------------------------------
+QUERY: Smart Bulb Electronics in Yemen
+Purchased ProductID: 204
+Returned ProductIDs: ['204']
+nDCG@10: 0.2201
+Conversion Score: 1.00
+------------------------------------------------------------
+QUERY: Headphones Electronics in Samoa
+Purchased ProductID: 252
+Returned ProductIDs: ['252', '238']
+nDCG@10: 0.3590
+Conversion Score: 1.00
+------------------------------------------------------------
+QUERY: Router Electronics in Israel
+Purchased ProductID: 220
+Returned ProductIDs: ['220', '287', '253']
+nDCG@10: 0.3301
+Conversion Score: 1.00
+------------------------------------------------------------
+QUERY: Vacuum Cleaner Home Appliances in Saint Martin
+Purchased ProductID: 299
+Returned ProductIDs: ['299', '260']
+nDCG@10: 0.2201
+Conversion Score: 1.00
+------------------------------------------------------------
+QUERY: Coffee Maker Home Appliances in Martinique
+Purchased ProductID: 202
+Returned ProductIDs: ['202', '231', '266']
+nDCG@10: 0.4690
+Conversion Score: 1.00
+------------------------------------------------------------
+QUERY: Router Electronics in Qatar
+Purchased ProductID: 262
+Returned ProductIDs: ['262', '260', '234']
+nDCG@10: 0.3301
+Conversion Score: 1.00
+------------------------------------------------------------
+QUERY: Printer Electronics in Iran
+Purchased ProductID: 241
+Returned ProductIDs: ['241', '204', '227']
+nDCG@10: 0.3590
+Conversion Score: 1.00
+------------------------------------------------------------
+QUERY: Electric Kettle Home Appliances in Norfolk Island
+Purchased ProductID: 214
+Returned ProductIDs: ['214']
+nDCG@10: 0.2201
+Conversion Score: 1.00
+------------------------------------------------------------
+QUERY: Blender Home Appliances in Saint Lucia
+Purchased ProductID: 217
+Returned ProductIDs: ['217', '290', '202', '210', '237']
+nDCG@10: 0.6489
+Conversion Score: 1.00
+------------------------------------------------------------
+QUERY: Smartwatch Electronics in New Zealand
+Purchased ProductID: 237
+Returned ProductIDs: ['237', '268', '210', '256', '255']
+nDCG@10: 0.5638
+Conversion Score: 1.00
+------------------------------------------------------------
+QUERY: Camera Electronics in Mali
+Purchased ProductID: 238
+Returned ProductIDs: ['238', '284', '282']
+nDCG@10: 0.3590
+Conversion Score: 1.00
+------------------------------------------------------------
+QUERY: Smartphone Electronics in Guadeloupe
+Purchased ProductID: 246
+Returned ProductIDs: ['246', '242', '263']
+nDCG@10: 0.2201
+Conversion Score: 1.00
+------------------------------------------------------------
+QUERY: Heater Home Appliances in Togo
+Purchased ProductID: 210
+Returned ProductIDs: ['210', '228']
+nDCG@10: 0.2201
+Conversion Score: 1.00
+------------------------------------------------------------
+QUERY: Microwave Home Appliances in Falkland Islands (Malvinas)
+Purchased ProductID: 273
+Returned ProductIDs: ['267', '273', '281', '204', '217']
+nDCG@10: 0.4441
+Conversion Score: 0.70
+------------------------------------------------------------
+QUERY: luxury Television Electronics in Saudi Arabia
+Purchased ProductID: 247
+Returned ProductIDs: ['247']
+nDCG@10: 0.2201
+Conversion Score: 1.00
+------------------------------------------------------------
+QUERY: Electric Kettle Home Appliances in Greenland
+Purchased ProductID: 219
+Returned ProductIDs: ['219']
+nDCG@10: 0.2201
+Conversion Score: 1.00
+------------------------------------------------------------
+QUERY: Router Electronics in Kuwait
+Purchased ProductID: 235
+Returned ProductIDs: ['235']
+nDCG@10: 0.2201
+Conversion Score: 1.00
+------------------------------------------------------------
+QUERY: Printer Electronics in Macedonia
+Purchased ProductID: 239
+Returned ProductIDs: ['239', '235']
+nDCG@10: 0.3590
+Conversion Score: 1.00
+------------------------------------------------------------
+QUERY: Vacuum Cleaner Home Appliances in Cameroon
+Purchased ProductID: 298
+Returned ProductIDs: ['298', '279', '256']
+nDCG@10: 0.3301
+Conversion Score: 1.00
+------------------------------------------------------------
+QUERY: Microwave Home Appliances in Cameroon
+Purchased ProductID: 256
+Returned ProductIDs: ['256', '279', '298']
+nDCG@10: 0.3301
+Conversion Score: 1.00
+------------------------------------------------------------
+QUERY: Smartwatch Electronics in Malawi
+Purchased ProductID: 283
+Returned ProductIDs: ['283', '229']
+nDCG@10: 0.3590
+Conversion Score: 1.00
+------------------------------------------------------------
+QUERY: Coffee Maker Home Appliances in Yemen
+Purchased ProductID: 260
+Returned ProductIDs: ['260', '203']
+nDCG@10: 0.2201
+Conversion Score: 1.00
+------------------------------------------------------------
+QUERY: Air Conditioner Home Appliances in Kyrgyz Republic
+Purchased ProductID: 207
+Returned ProductIDs: ['274', '207']
+nDCG@10: 0.1389
+Conversion Score: 0.70
+------------------------------------------------------------
+QUERY: Air Conditioner Home Appliances in Bhutan
+Purchased ProductID: 238
+Returned ProductIDs: ['238']
+nDCG@10: 0.2201
+Conversion Score: 1.00
+------------------------------------------------------------
+QUERY: Printer Electronics in Cuba
+Purchased ProductID: 200
+Returned ProductIDs: ['200', '240', '219']
+nDCG@10: 0.3301
+Conversion Score: 1.00
+------------------------------------------------------------
+QUERY: Smartwatch Electronics in Angola
+Purchased ProductID: 293
+Returned ProductIDs: ['293', '273']
+nDCG@10: 0.2201
+Conversion Score: 1.00
+------------------------------------------------------------
+QUERY: Printer Electronics in Slovenia
+Purchased ProductID: 233
+Returned ProductIDs: ['233', '236', '209', '238']
+nDCG@10: 0.4249
+Conversion Score: 1.00
+------------------------------------------------------------
+QUERY: Smart Bulb Electronics in Slovenia
+Purchased ProductID: 209
+Returned ProductIDs: ['209', '238']
+nDCG@10: 0.3590
+Conversion Score: 1.00
+------------------------------------------------------------
+QUERY: Heater Home Appliances in Barbados
+Purchased ProductID: 229
+Returned ProductIDs: ['204', '229']
+nDCG@10: 0.1389
+Conversion Score: 0.70
+------------------------------------------------------------
+QUERY: Smartwatch Electronics in Falkland Islands (Malvinas)
+Purchased ProductID: 200
+Returned ProductIDs: ['200', '282', '208']
+nDCG@10: 0.3301
+Conversion Score: 1.00
+------------------------------------------------------------
+QUERY: Camera Electronics in Guatemala
+Purchased ProductID: 237
+Returned ProductIDs: ['237', '290', '201']
+nDCG@10: 0.4690
+Conversion Score: 1.00
+------------------------------------------------------------
+QUERY: Electric Kettle Home Appliances in Cuba
+Purchased ProductID: 236
+Returned ProductIDs: ['236']
+nDCG@10: 0.2201
+Conversion Score: 1.00
+------------------------------------------------------------
+QUERY: Blender Home Appliances in Northern Mariana Islands
+Purchased ProductID: 267
+Returned ProductIDs: ['290', '267', '251', '278']
+nDCG@10: 0.5638
+Conversion Score: 0.70
+------------------------------------------------------------
+QUERY: low price Smartphone Electronics in Turkey
+Purchased ProductID: 251
+Returned ProductIDs: ['268', '251', '236']
+nDCG@10: 0.3590
+Conversion Score: 0.70
+------------------------------------------------------------
+QUERY: Headphones Electronics in Gambia
+Purchased ProductID: 261
+Returned ProductIDs: ['261', '261', '211']
+nDCG@10: 0.3590
+Conversion Score: 1.00
+------------------------------------------------------------
+QUERY: Blender Home Appliances in Sri Lanka
+Purchased ProductID: 230
+Returned ProductIDs: ['230', '286', '294', '221', '231']
+nDCG@10: 0.3052
+Conversion Score: 1.00
+------------------------------------------------------------
+QUERY: Television Electronics in Senegal
+Purchased ProductID: 224
+Returned ProductIDs: ['224', '266']
+nDCG@10: 0.2201
+Conversion Score: 1.00
+------------------------------------------------------------
+QUERY: Laptop Electronics in Cambodia
+Purchased ProductID: 276
+Returned ProductIDs: ['276']
+nDCG@10: 0.2201
+Conversion Score: 1.00
+------------------------------------------------------------
+QUERY: Vacuum Cleaner Home Appliances in Iran
+Purchased ProductID: 214
+Returned ProductIDs: ['214', '277', '235']
+nDCG@10: 0.3301
+Conversion Score: 1.00
+------------------------------------------------------------
+QUERY: Smartwatch Electronics in French Guiana
+Purchased ProductID: 218
+Returned ProductIDs: ['218', '206', '241']
+nDCG@10: 0.3301
+Conversion Score: 1.00
+------------------------------------------------------------
+QUERY: Headphones Electronics in Albania
+Purchased ProductID: 269
+Returned ProductIDs: ['269', '240', '206']
+nDCG@10: 0.2201
+Conversion Score: 1.00
+------------------------------------------------------------
+QUERY: affordable Tablet Electronics in Palestinian Territory
+Purchased ProductID: 292
+Returned ProductIDs: ['292', '298']
+nDCG@10: 0.2201
+Conversion Score: 1.00
+------------------------------------------------------------
+QUERY: Electric Kettle Home Appliances in Sudan
+Purchased ProductID: 215
+Returned ProductIDs: ['215']
+nDCG@10: 0.2201
+Conversion Score: 1.00
+------------------------------------------------------------
+QUERY: Tablet Electronics in Estonia
+Purchased ProductID: 248
+Returned ProductIDs: ['248', '297', '258']
+nDCG@10: 0.2201
+Conversion Score: 1.00
+------------------------------------------------------------
+QUERY: Smartphone Electronics in Guatemala
+Purchased ProductID: 201
+Returned ProductIDs: ['201', '290', '237', '216']
+nDCG@10: 0.4690
+Conversion Score: 1.00
+------------------------------------------------------------
+QUERY: affordable Laptop Electronics in Lithuania
+Purchased ProductID: 253
+Returned ProductIDs: ['253']
+nDCG@10: 0.2201
+Conversion Score: 1.00
+------------------------------------------------------------
+QUERY: Smartwatch Electronics in Palau
+Purchased ProductID: 235
+Returned ProductIDs: ['235', '269', '244']
+nDCG@10: 0.2201
+Conversion Score: 1.00
+------------------------------------------------------------
+QUERY: Smartphone Electronics in Portugal
+Purchased ProductID: 288
+Returned ProductIDs: ['288', '210']
+nDCG@10: 0.3590
+Conversion Score: 1.00
+------------------------------------------------------------
+QUERY: Toaster Home Appliances in Georgia
+Purchased ProductID: 243
+Returned ProductIDs: ['243']
+nDCG@10: 0.2201
+Conversion Score: 1.00
+------------------------------------------------------------
+QUERY: Smartwatch Electronics in Mongolia
+Purchased ProductID: 234
+Returned ProductIDs: ['234', '254', '273']
+nDCG@10: 0.2201
+Conversion Score: 1.00
+------------------------------------------------------------
+QUERY: Laptop Electronics in Finland
+Purchased ProductID: 230
+Returned ProductIDs: ['230']
+nDCG@10: 0.2201
+Conversion Score: 1.00
+------------------------------------------------------------
+QUERY: Camera Electronics in Congo
+Purchased ProductID: 228
+Returned ProductIDs: ['228', '286']
+nDCG@10: 0.2201
+Conversion Score: 1.00
+------------------------------------------------------------
+QUERY: Heater Home Appliances in Bulgaria
+Purchased ProductID: 250
+Returned ProductIDs: ['287', '250', '254', '252', '285', '234']
+nDCG@10: 0.7273
+Conversion Score: 0.70
+------------------------------------------------------------
+QUERY: Camera Electronics in Malawi
+Purchased ProductID: 229
+Returned ProductIDs: ['229', '283']
+nDCG@10: 0.3590
+Conversion Score: 1.00
+------------------------------------------------------------
+QUERY: Air Conditioner Home Appliances in Luxembourg
+Purchased ProductID: 254
+Returned ProductIDs: ['254', '240']
+nDCG@10: 0.3590
+Conversion Score: 1.00
+------------------------------------------------------------
+QUERY: Smartphone Electronics in Uganda
+Purchased ProductID: 208
+Returned ProductIDs: ['208', '276', '265', '208']
+nDCG@10: 0.3149
+Conversion Score: 1.00
+------------------------------------------------------------
+QUERY: Headphones Electronics in Andorra
+Purchased ProductID: 214
+Returned ProductIDs: ['214', '216', '223']
+nDCG@10: 0.3301
+Conversion Score: 1.00
+------------------------------------------------------------
+QUERY: Microwave Home Appliances in Northern Mariana Islands
+Purchased ProductID: 290
+Returned ProductIDs: ['290', '278', '251', '267']
+nDCG@10: 0.5638
+Conversion Score: 1.00
+------------------------------------------------------------
+QUERY: top tier Electric Kettle Home Appliances in Gabon
+Purchased ProductID: 253
+Returned ProductIDs: ['253']
+nDCG@10: 0.2201
+Conversion Score: 1.00
+------------------------------------------------------------
+QUERY: Refrigerator Home Appliances in Puerto Rico
+Purchased ProductID: 278
+Returned ProductIDs: ['236', '237', '278']
+nDCG@10: 0.4690
+Conversion Score: 0.70
+------------------------------------------------------------
+QUERY: affordable Microwave Home Appliances in Eritrea
+Purchased ProductID: 231
+Returned ProductIDs: ['231', '216', '294']
+nDCG@10: 0.3590
+Conversion Score: 1.00
+------------------------------------------------------------
+QUERY: Smart Bulb Electronics in Cape Verde
+Purchased ProductID: 210
+Returned ProductIDs: ['210', '233', '217']
+nDCG@10: 0.4690
+Conversion Score: 1.00
+------------------------------------------------------------
+QUERY: mid priced Headphones Electronics in Spain
+Purchased ProductID: 204
+Returned ProductIDs: ['204']
+nDCG@10: 0.2201
+Conversion Score: 1.00
+------------------------------------------------------------
+QUERY: Vacuum Cleaner Home Appliances in Liechtenstein
+Purchased ProductID: 265
+Returned ProductIDs: ['265', '288', '297', '249']
+nDCG@10: 0.2201
+Conversion Score: 1.00
+------------------------------------------------------------
+QUERY: Television Electronics in Saint Lucia
+Purchased ProductID: 267
+Returned ProductIDs: ['267', '291', '220']
+nDCG@10: 0.3301
+Conversion Score: 1.00
+------------------------------------------------------------
+QUERY: Smart Bulb Electronics in Palau
+Purchased ProductID: 220
+Returned ProductIDs: ['220', '244', '269']
+nDCG@10: 0.2201
+Conversion Score: 1.00
+------------------------------------------------------------
+QUERY: Blender Home Appliances in Anguilla
+Purchased ProductID: 234
+Returned ProductIDs: ['234', '270', '215', '298']
+nDCG@10: 0.5638
+Conversion Score: 1.00
+------------------------------------------------------------
+QUERY: Smart Bulb Electronics in Gabon
+Purchased ProductID: 251
+Returned ProductIDs: ['251']
+nDCG@10: 0.2201
+Conversion Score: 1.00
+------------------------------------------------------------
+QUERY: Refrigerator Home Appliances in Canada
+Purchased ProductID: 272
+Returned ProductIDs: ['272', '261']
+nDCG@10: 0.2201
+Conversion Score: 1.00
+------------------------------------------------------------
+QUERY: Air Conditioner Home Appliances in Swaziland
+Purchased ProductID: 209
+Returned ProductIDs: ['276', '255', '209']
+nDCG@10: 0.1100
+Conversion Score: 0.70
+------------------------------------------------------------
+QUERY: Microwave Home Appliances in Oman
+Purchased ProductID: 239
+Returned ProductIDs: ['239', '207', '274', '270', '225', '234']
+nDCG@10: 0.5321
+Conversion Score: 1.00
+------------------------------------------------------------
+QUERY: Toaster Home Appliances in Cape Verde
+Purchased ProductID: 285
+Returned ProductIDs: ['285', '298']
+nDCG@10: 0.3590
+Conversion Score: 1.00
+------------------------------------------------------------
+QUERY: affordable Microwave Home Appliances in Burundi
+Purchased ProductID: 235
+Returned ProductIDs: ['235', '218', '292', '273']
+nDCG@10: 0.4249
+Conversion Score: 1.00
+------------------------------------------------------------
+QUERY: Camera Electronics in Indonesia
+Purchased ProductID: 285
+Returned ProductIDs: ['285', '257']
+nDCG@10: 0.3590
+Conversion Score: 1.00
+------------------------------------------------------------
+QUERY: Toaster Home Appliances in Cyprus
+Purchased ProductID: 283
+Returned ProductIDs: ['283', '284', '220']
+nDCG@10: 0.3590
+Conversion Score: 1.00
+------------------------------------------------------------
