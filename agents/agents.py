@@ -181,6 +181,13 @@ class QueryUnderstandingAgent:
         has_price_constraint, max_price, price_level = self._infer_price_intent(cleaned)
         country = self._infer_country(cleaned)
 
+        # If user did not specify price intent, fall back to memory
+        if not has_price_constraint:
+            inferred_data = self.memory_agent.get_inferred()
+            mem_price = inferred_data.get("price_sensitivity")
+            if mem_price:
+                price_level = mem_price
+
         # If user did not specify a country, fall back to inferred/preferred/candidate
         if country is None:
             inferred_data = self.memory_agent.get_inferred()
