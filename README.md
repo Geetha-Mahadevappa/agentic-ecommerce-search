@@ -157,14 +157,44 @@ The system was evaluated using **150 realistic queries** generated from real pur
 
 ```bash
 agentic-ecommerce-search/
-├── agents/            # Query, retrieval, reranking, memory
-├── embeddings_pipeline/
-├── api.py             # FastAPI server
-├── data/              # Raw data and embeddings
-├── results/           # Evaluation outputs
-├── Dockerfile
-├── docker-compose.yml
-└── Readme.md
+│
+├── agents/
+│   ├── agents.py              # QueryUnderstanding, Retrieval, Reranker agents
+│   └── memory_agent.py        # MemoryAgent
+│
+├── api.py                     # FastAPI server exposing /search endpoint
+│
+├── embeddings_pipeline/       # Embedding generation + FAISS index builders
+│   ├── build_faiss_index.py
+│   ├── download_datasets.py
+│   └── embed_products.py
+│
+├── configs/                   # Configuration files
+│   ├── config_agents.yaml
+│   └── config_embedding.yaml
+│
+├── data/                      # Raw data and generated artifacts
+│   ├── raw/                   # Original Kaggle CSV files
+│   ├── embeddings/            # Precomputed embeddings + FAISS index
+│   └── memory/                # Memory snapshots
+│
+├── llm/                       # LLM client wrapper
+│   └── llm_client.py
+│
+├── results/                   # Evaluation outputs
+│   ├── eval_queries.txt
+│   ├── success_cases.txt
+│   ├── failure_cases.txt
+│   └── metrics.json
+│
+├── search_orchestration.py    # End-to-end search pipeline
+├── search_metrics.py          # Evaluation metrics
+├── build_pipeline.py          # Runner for embedding pipeline
+│
+├── docker-compose.yml         # GPU-enabled Docker setup
+├── Dockerfile                 # Production container
+├── requirements.txt
+└── README.md
 ```
 
 ---
