@@ -62,7 +62,7 @@ Because of this, traditional keyword search performs poorly.
 
 ---
 
-## 🧠 How the System Works (High Level)
+## 🧠 How the System Works
 
 The system is built from **three main parts**:
 
@@ -143,7 +143,7 @@ The system was evaluated using **150 realistic queries** generated from real pur
 
 ---
 
-## ⚙️ Production Notes (Simplified)
+## ⚙️ Production Notes
 
 * FAISS is used for fast semantic retrieval
 * Keyword search improves recall
@@ -153,7 +153,7 @@ The system was evaluated using **150 realistic queries** generated from real pur
 
 ---
 
-## 🗂 Project Structure (Simplified)
+## 🗂 Project Structure
 
 ```bash
 agentic-ecommerce-search/
