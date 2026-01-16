@@ -1,15 +1,15 @@
-FROM python:3.10-slim
+# Use CUDA base image for GPU support
+FROM nvidia/cuda:12.2.0-cudnn8-runtime-ubuntu22.04
 
-# Environment settings
+# Environment variables
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     OMP_NUM_THREADS=4
 
+# Set working directory
 WORKDIR /app
 
 # System dependencies
-# - openblas/omp for sentence-transformers
-# - curl for healthchecks
 RUN apt-get update && apt-get install -y \
     build-essential \
     libopenblas-dev \
@@ -17,32 +17,30 @@ RUN apt-get update && apt-get install -y \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
+# Copy requirements.txt
 COPY requirements.txt .
+
+# Install GPU PyTorch first to match CUDA version
+RUN pip install --no-cache-dir torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu122
+
+# Install the rest of the dependencies (faiss-gpu included)
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Ensure config directory exists before copying
-RUN mkdir -p /app/configs
+# Ensure config and data directories exist
+RUN mkdir -p /app/configs /app/data/embeddings /app/data/memory
 
-# Copy application code
+# Copy app code
 COPY api.py /app/
 COPY search_orchestration.py /app/
 COPY logging_config.py /app/
-
 COPY agents/ /app/agents/
 COPY llm/ /app/llm/
-
-# Copy only the agent config
-RUN mkdir -p /app/configs
-COPY configs/config_agents.yaml /app/configs/config_agents.yaml
-
-# Copy artifacts
-RUN mkdir -p /app/data/embeddings
+COPY configs/config_agents.yaml /app/configs/
 COPY data/embeddings/ /app/data/embeddings/
-
-RUN mkdir -p /app/data/memory
 COPY data/memory/ /app/data/memory/
 
+# Expose API port
 EXPOSE 8000
 
-# Uvicorn timeout increased because model loading is slow on first run
+# Run API with longer timeout for model loading
 CMD ["uvicorn", "api:app", "--host", "0.0.0.0", "--port", "8000", "--timeout-keep-alive", "120"]
