@@ -75,7 +75,7 @@ Raw product data is converted into a single **canonical text** per product, comb
 - Price level (Low / Mid / High)
 - Selected review snippets
 
-This text is embedded using a **SentenceTransformer model** and indexed with **FAISS** for fast semantic search.
+This text is embedded using a **SentenceTransformer model** and indexed in **Qdrant** for fast semantic search.
 
 This step:
 - Adds meaning to generic product names
@@ -92,7 +92,7 @@ A small set of Python agents work together to answer each query:
   Extracts product type, country, and price intent from the query.
 
 - **Hybrid Retrieval Agent**  
-  Combines semantic search (FAISS) with keyword search (BM25) to find candidates.
+  Uses semantic search in Qdrant orchestrated through LangChain to find candidates.
 
 - **Reranker Agent**  
   Uses an LLM to score and reorder results for relevance.
@@ -145,8 +145,8 @@ The system was evaluated using **150 realistic queries** generated from real pur
 
 ## ⚙️ Production Notes
 
-* FAISS is used for fast semantic retrieval
-* Keyword search improves recall
+* Qdrant is used for fast semantic retrieval
+* LangChain orchestrates retrieval flow
 * LLM reranking improves result quality
 * The system can scale horizontally
 * Faster cross-encoders can replace the LLM later to reduce latency
@@ -164,8 +164,8 @@ agentic-ecommerce-search/
 │
 ├── api.py                     # FastAPI server exposing /search endpoint
 │
-├── embeddings_pipeline/       # Embedding generation + FAISS index builders
-│   ├── build_faiss_index.py
+├── embeddings_pipeline/       # Embedding generation + Qdrant index builders
+│   ├── build_qdrant_index.py
 │   ├── download_datasets.py
 │   └── embed_products.py
 │
@@ -175,7 +175,7 @@ agentic-ecommerce-search/
 │
 ├── data/                      # Raw data and generated artifacts
 │   ├── raw/                   # Original Kaggle CSV files
-│   ├── embeddings/            # Precomputed embeddings + FAISS index
+│   ├── embeddings/            # Precomputed embeddings + Qdrant index
 │   └── memory/                # Memory snapshots
 │
 ├── llm/                       # LLM client wrapper

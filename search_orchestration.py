@@ -6,21 +6,20 @@ Loads configuration and resources, builds agents, and exposes
 a run_search(...) function that executes the full workflow.
 """
 
-import sqlite3
 from pathlib import Path
 from dataclasses import dataclass
 from typing import Dict, Any, List
 
 import yaml
-import faiss
 import logging
 import pandas as pd
 import sqlalchemy as sa
 from sentence_transformers import SentenceTransformer
+from qdrant_client import QdrantClient
 from flashtext2 import KeywordProcessor
 
 from agents.agents import QueryUnderstandingAgent
-from agents.agents import BM25RetrievalAgent, HybridRetrievalAgent, RerankerAgent
+from agents.agents import QdrantRetrievalAgent, RerankerAgent
 from agents.memory_agent import MemoryAgent
 from llm.llm_client import LLMClient
 
@@ -33,10 +32,10 @@ logger = logging.getLogger(__name__)
 # Config dataclasses
 @dataclass
 class PathsConfig:
-    embeddings_npz: str
     mapping_parquet: str
     metadata_db: str
-    faiss_index: str
+    qdrant_path: str
+    qdrant_collection: str
     memory_dir: str
     user_prefs_json: str
     user_infer_json: str
@@ -61,7 +60,7 @@ class LLMConfig:
 
 @dataclass
 class SearchConfig:
-    faiss_top_k: int
+    vector_top_k: int
     final_top_k: int
     short_term_history: int
     recent_activity_days: int
@@ -89,23 +88,8 @@ def load_config(path: str) -> AppConfig:
 
 
 # Resource loaders
-def load_faiss_index(path: str) -> faiss.Index:
-    return faiss.read_index(path)
-
 def load_mapping(path: str) -> pd.DataFrame:
     return pd.read_parquet(path)
-
-def load_chunk_texts(db_path: str, mapping: pd.DataFrame) -> List[str]:
-    conn = sqlite3.connect(db_path)
-    df = pd.read_sql("SELECT variant_id, text FROM chunks", conn)
-    conn.close()
-
-    df["variant_id"] = df["variant_id"].astype(str)
-    mapping["variant_id"] = mapping["variant_id"].astype(str)
-
-    # No collapsing — one canonical text per variant
-    df = mapping.merge(df, on="variant_id", how="left")
-    return df["text"].tolist()
 
 def create_engine(db_path: str) -> sa.Engine:
     return sa.create_engine(f"sqlite:///{db_path}", future=True)
@@ -117,7 +101,7 @@ class SearchPipeline:
     config: AppConfig
     memory_agent: MemoryAgent
     query_agent: QueryUnderstandingAgent
-    retrieval_agent: HybridRetrievalAgent
+    retrieval_agent: QdrantRetrievalAgent
     reranker: RerankerAgent
 
 
@@ -126,11 +110,9 @@ def build_search_pipeline(config_path: str = "configs/config_agents.yaml",) -> S
     config = load_config(config_path)
 
     # Load resources
-    logger.info("Loading mapping, FAISS index, and metadata")
+    logger.info("Loading mapping, Qdrant settings, and metadata")
     mapping_df = load_mapping(config.paths.mapping_parquet)
     mapping_df["variant_id"] = mapping_df["variant_id"].astype(str)
-    faiss_index = load_faiss_index(config.paths.faiss_index)
-    chunk_texts = load_chunk_texts(config.paths.metadata_db, mapping_df)
     db_engine = create_engine(config.paths.metadata_db)
 
     metadata_df = pd.read_sql(
@@ -178,11 +160,7 @@ def build_search_pipeline(config_path: str = "configs/config_agents.yaml",) -> S
         metadata_df["category"].str.lower().tolist()
     )
     product_types = list(set(product_types))
-    pt_embeddings = embedding_model.encode(product_types, convert_to_numpy=True).astype("float32")
-
-    d = pt_embeddings.shape[1]
-    pt_index = faiss.IndexFlatL2(d)
-    pt_index.add(pt_embeddings)
+    pt_index = embedding_model.encode(product_types, convert_to_numpy=True).astype("float32")
 
     countries = (
         metadata_df["country"]
@@ -203,20 +181,15 @@ def build_search_pipeline(config_path: str = "configs/config_agents.yaml",) -> S
         countries=countries
     )
 
-    bm25_agent = BM25RetrievalAgent(
-        corpus=chunk_texts,
-        mapping=mapping_df,
-        top_k=config.search.faiss_top_k,
-    )
+    qdrant_client = QdrantClient(path=config.paths.qdrant_path)
 
-    hybrid_agent = HybridRetrievalAgent(
+    hybrid_agent = QdrantRetrievalAgent(
         model_name=config.model.name,
         device=config.model.device,
-        faiss_index=faiss_index,
-        mapping=mapping_df,
+        qdrant_client=qdrant_client,
+        collection_name=config.paths.qdrant_collection,
         metadata=metadata_df,
-        bm25_agent=bm25_agent,
-        top_k=config.search.faiss_top_k,
+        top_k=config.search.vector_top_k,
     )
 
     reranker = RerankerAgent(

@@ -1,8 +1,8 @@
 paths:
-  embeddings_npz: "data/embeddings/product_embeddings.npz"
   mapping_parquet: "data/embeddings/id_mapping.parquet"
   metadata_db: "data/embeddings/metadata.sqlite"
-  faiss_index: "data/embeddings/faiss_index.bin"
+  qdrant_path: "data/embeddings/qdrant"
+  qdrant_collection: "products"
 
   # memory subsystem
   memory_dir: "data/memory"
@@ -18,7 +18,7 @@ model:
 
 llm:
   model_name: "Qwen/Qwen2-1.5B-Instruct"
-  device: "cuda"        # cpu or cudapy
+  device: "cuda"        # cpu or cuda
   max_new_tokens: 32
   use_pipeline: false
   dtype: float16
@@ -28,16 +28,11 @@ retrieval:
   hard_filters: ["country", "price_level"] # Metadata fields available for hard filtering
   allow_regional_expansion: false
 
-  # Scoring weights for Hybrid Search (Vector + BM25)
-  hybrid_weights:
-    vector: 0.7
-    bm25: 0.3
-
 reranker:
   score_cutoff_ratio: 0.10
 
 search:
-  faiss_top_k: 50        # how many candidates to pull from FAISS
+  vector_top_k: 50       # how many candidates to pull from Qdrant
   final_top_k: 10        # how many products we return to the user
   short_term_history: 5  # how many recent queries to keep in memory
   recent_activity_days: 7  # how many days of activity to return

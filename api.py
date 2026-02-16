@@ -36,7 +36,7 @@ def initialize_pipeline() -> None:
     Build the search pipeline once at application startup.
 
     This ensures that heavy components such as embedding models,
-    FAISS indexes, and LLM clients are loaded a single time.
+    Qdrant vector stores, and LLM clients are loaded a single time.
     """
     global pipeline, pipeline_ready
 
