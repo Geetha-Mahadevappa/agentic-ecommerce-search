@@ -7,10 +7,15 @@ Each agent handles one focused step in the workflow.
 from dataclasses import dataclass
 from typing import List, Dict, Any, Optional
 
-import faiss
+import numpy as np
+from qdrant_client import QdrantClient
+from qdrant_client.models import Filter, FieldCondition, MatchAny
+from langchain_qdrant import QdrantVectorStore
+from langchain_huggingface import HuggingFaceEmbeddings
+from langchain_core.runnables import RunnableLambda
+
 import logging
 import pandas as pd
-from rank_bm25 import BM25Okapi
 from sentence_transformers import SentenceTransformer
 from sqlalchemy import text, bindparam
 
@@ -93,11 +98,10 @@ class QueryUnderstandingAgent:
 
         try:
             q_emb = self.embedding_model.encode(text, convert_to_numpy=True).astype("float32")
-            q_emb = q_emb.reshape(1, -1)
-
-            scores, idxs = self.product_type_index.search(q_emb, 1)
-            best_idx = idxs[0][0]
-
+            q_norm = np.linalg.norm(q_emb) + 1e-12
+            cand = self.product_type_index
+            scores = (cand @ q_emb) / ((np.linalg.norm(cand, axis=1) + 1e-12) * q_norm)
+            best_idx = int(np.argmax(scores))
             if best_idx < 0:
                 return None
 
@@ -215,168 +219,82 @@ class QueryUnderstandingAgent:
         }
 
 
-# BM25 retrieval
+# Vector retrieval (Qdrant + LangChain)
 @dataclass
-class BM25RetrievalAgent:
-    """BM25 retrieval over canonical texts."""
-
-    corpus: List[str]
-    mapping: pd.DataFrame
-    top_k: int = 50
-
-    def __post_init__(self):
-        logger.info(f"Initializing BM25RetrievalAgent with {len(self.corpus)} documents")
-        try:
-            tokenized = [doc.lower().split() for doc in self.corpus]
-            self._bm25 = BM25Okapi(tokenized)
-        except Exception as e:
-            logger.error(f"Failed to initialize BM25 index: {e}")
-            raise
-
-    def run(self, query: str, allowed_ids: set[str] | None = None):
-        """Run BM25 retrieval and optionally filter by allowed variant IDs."""
-        logger.info(f"Running BM25 retrieval for query: {query}")
-
-        try:
-            tokens = query.lower().split()
-            scores = self._bm25.get_scores(tokens)
-        except Exception as e:
-            logger.error(f"BM25 scoring failed for query {query}: {e}")
-            return []
-
-        idxs = scores.argsort()[-self.top_k:][::-1]
-        logger.info(f"BM25 returned {len(idxs)} candidates")
-
-        out: List[Dict[str, Any]] = []
-        for idx in idxs:
-            row = self.mapping.iloc[idx]
-            vid = str(row["variant_id"]).strip()
-
-            if allowed_ids is not None and vid not in allowed_ids:
-                continue
-
-            out.append({"variant_id": vid, "score": float(scores[idx])})
-        return out
-
-
-# Hybrid retrieval (FAISS + BM25)
-@dataclass
-class HybridRetrievalAgent:
+class QdrantRetrievalAgent:
     """
-    Combines FAISS semantic search with BM25 lexical search and applies
-    product-type filtering. Country and numeric price constraints are
-    applied as hard filters before reranking. The agent expects that
-    allowed_ids has already been constructed upstream (e.g., based on
-    country).
+    Semantic retrieval using Qdrant as the vector backend and LangChain
+    for vector-store orchestration.
     """
 
     model_name: str
     device: str
-    faiss_index: faiss.Index
-    mapping: pd.DataFrame
+    qdrant_client: QdrantClient
+    collection_name: str
     metadata: pd.DataFrame
-    bm25_agent: BM25RetrievalAgent
     top_k: int = 50
-    semantic_weight: float = 0.6
-    bm25_weight: float = 0.4
 
     def __post_init__(self):
-        logger.info(f"Initializing HybridRetrievalAgent with model {self.model_name}")
+        logger.info("Initializing QdrantRetrievalAgent with model %s", self.model_name)
+        self._embeddings = HuggingFaceEmbeddings(
+            model_name=self.model_name,
+            model_kwargs={"device": self.device},
+            encode_kwargs={"normalize_embeddings": True},
+        )
+        self._vector_store = QdrantVectorStore(
+            client=self.qdrant_client,
+            collection_name=self.collection_name,
+            embedding=self._embeddings,
+            content_payload_key="text",
+        )
 
-        # Load embedding model
-        try:
-            self._model = SentenceTransformer(self.model_name, device=self.device)
-        except Exception as e:
-            logger.error(f"Failed to load embedding model {self.model_name}: {e}")
-            raise
-
-        # Normalize variant_id for consistent lookup
-        self.mapping["variant_id"] = self.mapping["variant_id"].astype(str).str.strip()
         self.metadata["variant_id"] = self.metadata["variant_id"].astype(str).str.strip()
-
-        # Performance optimization: index metadata by variant_id
         self.metadata = self.metadata.set_index("variant_id", drop=False)
 
-    def _semantic_search(self, query: str, allowed_ids: set[str] | None = None):
-        """
-        Run FAISS semantic search and optionally restrict results to allowed_ids.
-        """
-        logger.info(f"Running FAISS semantic search for query: {query}")
+    def _make_filter(self, allowed_ids: set[str] | None) -> Filter | None:
+        if not allowed_ids:
+            return None
+        return Filter(
+            must=[
+                FieldCondition(
+                    key="variant_id",
+                    match=MatchAny(any=[str(v) for v in sorted(allowed_ids)]),
+                )
+            ]
+        )
 
-        try:
-            q_emb = self._model.encode(query, convert_to_numpy=True).astype("float32")
-            q_emb = q_emb.reshape(1, -1)
-            scores, idxs = self.faiss_index.search(q_emb, self.top_k)
-        except Exception as e:
-            logger.error(f"FAISS search failed for query {query}: {e}")
-            return []
+    def _semantic_search(self, query: str, allowed_ids: set[str] | None = None) -> List[Dict[str, Any]]:
+        q_filter = self._make_filter(allowed_ids)
+        docs_and_scores = self._vector_store.similarity_search_with_score(
+            query=query,
+            k=self.top_k,
+            filter=q_filter,
+        )
 
         out: List[Dict[str, Any]] = []
-        for score, idx in zip(scores[0], idxs[0]):
-            row = self.mapping.iloc[idx]
-            vid = str(row["variant_id"]).strip()
-
-            if allowed_ids is not None and vid not in allowed_ids:
+        for doc, score in docs_and_scores:
+            variant_id = str(doc.metadata.get("variant_id", "")).strip()
+            if not variant_id:
                 continue
+            sim_score = 1.0 / (1.0 + float(score))
+            out.append({"variant_id": variant_id, "score": sim_score})
 
-            out.append({"variant_id": vid, "score": float(score)})
-
-        logger.info(f"FAISS returned {len(out)} candidates")
+        logger.info("Qdrant returned %d candidates", len(out))
         return out
 
     def run(self, query_info: Dict[str, Any], allowed_ids: set[str] | None = None) -> List[Dict[str, Any]]:
-        """
-        Run hybrid retrieval with optional pre-filtered allowed_ids.
-        Country filtering should be handled upstream by constructing allowed_ids.
-        Numeric product price constraints and product-type filtering are applied as hard filters here.
-        """
         query = query_info["clean_query"]
         product_type = query_info.get("product_type")
-        max_price = query_info.get("max_price")
 
-        logger.info(f"Running HybridRetrievalAgent for query: {query}")
+        retrieval_chain = RunnableLambda(
+            lambda inp: self._semantic_search(inp["query"], inp.get("allowed_ids"))
+        )
 
-        # Semantic retrieval
-        sem_results = self._semantic_search(query, allowed_ids=allowed_ids)
+        merged = retrieval_chain.invoke({"query": query, "allowed_ids": allowed_ids})
 
-        # Lexical retrieval
-        bm25_results = self.bm25_agent.run(query, allowed_ids=allowed_ids)
-
-        # Merge scores
-        combined: Dict[str, float] = {}
-        for r in sem_results:
-            vid = r["variant_id"]
-            combined.setdefault(vid, 0.0)
-            combined[vid] += r["score"] * self.semantic_weight
-
-        for r in bm25_results:
-            vid = r["variant_id"]
-            combined.setdefault(vid, 0.0)
-            combined[vid] += r["score"] * self.bm25_weight
-
-        merged = [{"variant_id": vid, "score": score} for vid, score in combined.items()]
-        merged.sort(key=lambda x: x["score"], reverse=True)
-
-        # Apply numeric price filtering only when a country filter is active
-        is_global_search = (allowed_ids is None or len(allowed_ids) > len(self.metadata) * 0.9)
-        if max_price is not None and not is_global_search:
-            filtered = []
-            for item in merged:
-                vid = item["variant_id"]
-                try:
-                    row = self.metadata.loc[vid]
-                    price = float(row["price"])
-                    if price <= max_price:
-                        filtered.append(item)
-                except KeyError:
-                    logger.warning(f"Metadata missing for variant_id '{vid}'")
-            merged = filtered
-
-        # Product-type filtering
         if product_type:
             pt_tokens = product_type.lower().split()
             filtered = []
-
             for item in merged:
                 vid = item["variant_id"]
                 try:
@@ -387,10 +305,8 @@ class HybridRetrievalAgent:
                 name = str(row["product_name"]).lower()
                 category = str(row["category"]).lower()
                 text_tokens = f"{name} {category}".split()
-
                 if any(tok in text_tokens for tok in pt_tokens):
                     filtered.append(item)
-
             merged = filtered
 
         merged.sort(key=lambda x: x["score"], reverse=True)
