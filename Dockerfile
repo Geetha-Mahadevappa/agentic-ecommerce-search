@@ -1,5 +1,5 @@
 # Use CUDA base image for GPU support
-FROM nvidia/cuda:12.2.2-cudnn8-runtime-ubuntu22.04
+FROM nvidia/cuda:12.4.0-runtime-ubuntu22.04
 
 # Environment variables
 ENV PYTHONUNBUFFERED=1 \
@@ -15,13 +15,16 @@ RUN apt-get update && apt-get install -y \
     libopenblas-dev \
     libomp-dev \
     curl \
+    python3 \
+    python3-pip \
+    python3-venv \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy requirements.txt
 COPY requirements.txt .
 
 # Install GPU PyTorch first to match CUDA version
-RUN pip install --no-cache-dir torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu122
+RUN pip install torch==2.6.0 torchvision==0.21.0 torchaudio==2.6.0 --index-url https://download.pytorch.org/whl/cu124
 
 # Install the rest of the dependencies (faiss-gpu included)
 RUN pip install --no-cache-dir -r requirements.txt
