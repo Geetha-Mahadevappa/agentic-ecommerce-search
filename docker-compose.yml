@@ -10,12 +10,13 @@ services:
 
     restart: unless-stopped
 
-    environment:
-      PYTHONUNBUFFERED: "1"
-      NVIDIA_VISIBLE_DEVICES: all
-      NVIDIA_DRIVER_CAPABILITIES: compute,utility
-
-    runtime: nvidia
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
 
     networks:
       - search_network
@@ -25,8 +26,8 @@ services:
       interval: 30s
       timeout: 10s
       retries: 10
-      start_period: 360s   # allow model loading on first run
+      start_period: 360s
 
-networks:
-  search_network:
+networks: 
+  search_network: 
     driver: bridge
