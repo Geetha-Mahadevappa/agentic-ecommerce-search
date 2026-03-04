@@ -3,5 +3,5 @@
   "model_version": "all-mpnet-base-v2",
   "num_variants": 1000,
   "embedding_dim": 768,
-  "created_at": 1767552964.8997447
+  "created_at": 1772658970.4691021
 }
