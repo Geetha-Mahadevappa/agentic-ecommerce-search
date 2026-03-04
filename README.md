@@ -1,7 +1,7 @@
 # Agentic E-Commerce Search
 **Hybrid Search • Semantic Understanding • Multi-Agent System**
 
-## 🚀 Overview
+## Overview
 
 This project is a **smart search system for e-commerce data** built to handle messy, real-world conditions.
 
@@ -15,7 +15,7 @@ The system uses **semantic embeddings, hybrid retrieval, and lightweight agents*
 
 ---
 
-## 🔍 What the System Does
+## What the System Does
 
 Given a vague query like:
 
@@ -33,7 +33,7 @@ All of this runs locally in Python and is exposed through a **REST API**.
 
 ---
 
-## 📦 Dataset
+## Dataset
 
 This project uses the Kaggle dataset:
 
@@ -48,25 +48,25 @@ The data is intentionally **noisy and incomplete**, which makes it ideal for tes
 
 ---
 
-## ⚠️ Data Challenges (Why This Is Hard)
+## Data Challenges (Why This Is Hard)
 
 The dataset has several problems that shape the system design:
 
-- ❌ No structured product catalog  
-- 🔁 Product IDs are reused across countries  
-- 🏷 Very generic product names (e.g., “Camera”)  
-- 🗣 Short, repetitive, low-signal reviews  
-- 🌍 Uneven product availability across countries  
+- No structured product catalog  
+- Product IDs are reused across countries  
+- Very generic product names (e.g., “Camera”)  
+- Short, repetitive, low-signal reviews  
+- Uneven product availability across countries  
 
 Because of this, traditional keyword search performs poorly.
 
 ---
 
-## 🧠 How the System Works
+## How the System Works
 
 The system is built from **three main parts**:
 
-### 1️⃣ Embedding Pipeline
+### Embedding Pipeline
 
 Raw product data is converted into a single **canonical text** per product, combining:
 - Product name
@@ -84,7 +84,7 @@ This step:
 
 ---
 
-### 2️⃣ Agentic Search Flow
+### Agentic Search Flow
 
 A small set of Python agents work together to answer each query:
 
@@ -104,7 +104,7 @@ This layered approach stabilizes search even when data is incomplete.
 
 ---
 
-### 3️⃣ Memory-Aware Search
+### Memory-Aware Search
 
 The system remembers user preferences during a session:
 - Country
@@ -117,7 +117,7 @@ without needing to restate all constraints.
 
 ---
 
-## 📊 Evaluation Results
+## Evaluation Results
 
 The system was evaluated using **150 realistic queries** generated from real purchase logs.
 
@@ -143,7 +143,7 @@ The system was evaluated using **150 realistic queries** generated from real pur
 
 ---
 
-## ⚙️ Production Notes
+## Production Notes
 
 * Qdrant is used for fast semantic retrieval
 * LangChain orchestrates retrieval flow
@@ -153,7 +153,7 @@ The system was evaluated using **150 realistic queries** generated from real pur
 
 ---
 
-## 🗂 Project Structure
+## Project Structure
 
 ```bash
 agentic-ecommerce-search/
@@ -199,7 +199,7 @@ agentic-ecommerce-search/
 
 ---
 
-## ▶️ How to Run
+## How to Run
 
 The system runs inside a **GPU-enabled Docker container**.
 
@@ -216,7 +216,7 @@ http://127.0.0.1:8000/docs
 
 ---
 
-## ✅ Conclusion
+## Conclusion
 
 This project shows how **semantic embeddings, hybrid retrieval, and agent-based orchestration**
 can turn noisy, incomplete e-commerce data into a practical search system.
