@@ -93,6 +93,17 @@ class MemoryAgent:
         )
 
     # Safe file helpers
+    def _write_json_locked(self, path: Path, data):
+        tmp = Path(str(path) + ".tmp")
+        try:
+            with open(tmp, "w") as f:
+                json.dump(data, f, indent=2)
+                f.flush()
+                os.fsync(f.fileno())
+            tmp.replace(path)
+        except Exception as e:
+            logger.error(f"Failed to write JSON file {path}: {e}")
+
     def _safe_read_json(self, path: Path, default):
         lock = FileLock(str(path) + ".lock")
         with lock:
@@ -101,21 +112,24 @@ class MemoryAgent:
                     return json.load(f)
             except Exception as e:
                 logger.error(f"Failed to read JSON file {path}: {e}. Rewriting default.")
-                self._safe_write_json(path, default)
+                self._write_json_locked(path, default)
                 return default
 
     def _safe_write_json(self, path: Path, data):
         lock = FileLock(str(path) + ".lock")
         with lock:
-            tmp = Path(str(path) + ".tmp")
-            try:
-                with open(tmp, "w") as f:
-                    json.dump(data, f, indent=2)
-                    f.flush()
-                    os.fsync(f.fileno())
-                tmp.replace(path)
-            except Exception as e:
-                logger.error(f"Failed to write JSON file {path}: {e}")
+            self._write_json_locked(path, data)
+
+    def _write_yaml_locked(self, path: Path, data):
+        tmp = Path(str(path) + ".tmp")
+        try:
+            with open(tmp, "w") as f:
+                yaml.safe_dump(data, f)
+                f.flush()
+                os.fsync(f.fileno())
+            tmp.replace(path)
+        except Exception as e:
+            logger.error(f"Failed to write YAML file {path}: {e}")
 
     def _safe_read_yaml(self, path: Path, default):
         lock = FileLock(str(path) + ".lock")
@@ -126,21 +140,13 @@ class MemoryAgent:
                     return data if data is not None else default
             except Exception as e:
                 logger.error(f"Failed to read YAML file {path}: {e}. Rewriting default.")
-                self._safe_write_yaml(path, default)
+                self._write_yaml_locked(path, default)
                 return default
 
     def _safe_write_yaml(self, path: Path, data):
         lock = FileLock(str(path) + ".lock")
         with lock:
-            tmp = Path(str(path) + ".tmp")
-            try:
-                with open(tmp, "w") as f:
-                    yaml.safe_dump(data, f)
-                    f.flush()
-                    os.fsync(f.fileno())
-                tmp.replace(path)
-            except Exception as e:
-                logger.error(f"Failed to write YAML file {path}: {e}")
+            self._write_yaml_locked(path, data)
 
     def _infer_price_sensitivity(self, query: str, product_type: str | None = None) -> str | None:
         """Infer the user's price sensitivity using price bands from procedural memory."""
