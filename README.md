@@ -129,7 +129,6 @@ through the full pipeline and scores the results with **RAGAS**:
 {
   "p99_latency_ms": 908.05,
   "faithfulness": 1.0,
-  "llm_context_precision_without_reference": 0.0,
   "semantic_similarity": 0.60
 }
 ```
@@ -141,8 +140,6 @@ with a larger sample.)
 
 * **faithfulness** — is the surfaced answer grounded in the retrieved product text (no
   hallucinated details)?
-* **llm_context_precision_without_reference** — are the contexts Qdrant retrieved actually
-  relevant to the query?
 * **semantic_similarity** — used here as an *answer relevance* proxy: how closely does the
   surfaced answer align with the query itself.
 * **p99_latency_ms** — worst-case latency, acceptable for an MVP with LLM reranking.
