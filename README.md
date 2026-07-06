@@ -144,9 +144,7 @@ with a larger sample.)
 * **llm_context_precision_without_reference** — are the contexts Qdrant retrieved actually
   relevant to the query?
 * **semantic_similarity** — used here as an *answer relevance* proxy: how closely does the
-  surfaced answer align with the query itself (RAGAS's own `ResponseRelevancy` metric
-  reliably crashes CUDA with this project's small local completion-only Qwen2-1.5B setup —
-  see the comment at the top of `search_metrics.py` for why).
+  surfaced answer align with the query itself.
 * **p99_latency_ms** — worst-case latency, acceptable for an MVP with LLM reranking.
 
 ---
