@@ -10,7 +10,6 @@ from typing import List, Dict, Any, Optional
 import numpy as np
 from qdrant_client import QdrantClient
 from qdrant_client.models import Filter, FieldCondition, MatchAny
-from langchain_qdrant import QdrantVectorStore
 from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_core.runnables import RunnableLambda
 
@@ -241,12 +240,6 @@ class QdrantRetrievalAgent:
             model_kwargs={"device": self.device},
             encode_kwargs={"normalize_embeddings": True},
         )
-        self._vector_store = QdrantVectorStore(
-            client=self.qdrant_client,
-            collection_name=self.collection_name,
-            embedding=self._embeddings,
-            content_payload_key="text",
-        )
 
         self.metadata["variant_id"] = self.metadata["variant_id"].astype(str).str.strip()
         self.metadata = self.metadata.set_index("variant_id", drop=False)
@@ -265,19 +258,22 @@ class QdrantRetrievalAgent:
 
     def _semantic_search(self, query: str, allowed_ids: set[str] | None = None) -> List[Dict[str, Any]]:
         q_filter = self._make_filter(allowed_ids)
-        docs_and_scores = self._vector_store.similarity_search_with_score(
-            query=query,
-            k=self.top_k,
-            filter=q_filter,
-        )
+        query_vector = self._embeddings.embed_query(query)
+        hits = self.qdrant_client.query_points(
+            collection_name=self.collection_name,
+            query=query_vector,
+            query_filter=q_filter,
+            limit=self.top_k,
+            with_payload=True,
+        ).points
 
         out: List[Dict[str, Any]] = []
-        for doc, score in docs_and_scores:
-            variant_id = str(doc.metadata.get("variant_id", "")).strip()
+        for point in hits:
+            payload = point.payload or {}
+            variant_id = str(payload.get("variant_id", "")).strip()
             if not variant_id:
                 continue
-            sim_score = 1.0 / (1.0 + float(score))
-            out.append({"variant_id": variant_id, "score": sim_score})
+            out.append({"variant_id": variant_id, "score": float(point.score)})
 
         logger.info("Qdrant returned %d candidates", len(out))
         return out
