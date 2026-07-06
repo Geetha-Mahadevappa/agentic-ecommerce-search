@@ -119,27 +119,66 @@ without needing to restate all constraints.
 
 ## Evaluation Results
 
-The system was evaluated using **150 realistic queries** generated from real purchase logs.
+`search_metrics.py` runs a sample of realistic queries generated from real purchase logs
+through the full pipeline and scores the results with **RAGAS**:
 
 ```json
 {
-  "conversion_per_search": 0.80,
-  "p99_latency_ms": 1300,
-  "ndcg_at_10": 0.26,
-  "zero_result_rate": 0.093
+  "p99_latency_ms": 908.05,
+  "faithfulness": 1.0,
+  "llm_context_precision_without_reference": 0.0,
+  "semantic_similarity": 0.60
 }
-````
+```
+
+(Example from a 3-query sample run — see [How to Run](#how-to-run) below to reproduce
+with a larger sample.)
 
 ### What This Means
 
-* **80% conversion rate**
-  The correct product was surfaced in most searches.
+* **faithfulness** — is the surfaced answer grounded in the retrieved product text (no
+  hallucinated details)?
+* **llm_context_precision_without_reference** — are the contexts Qdrant retrieved actually
+  relevant to the query?
+* **semantic_similarity** — used here as an *answer relevance* proxy: how closely does the
+  surfaced answer align with the query itself (RAGAS's own `ResponseRelevancy` metric
+  reliably crashes CUDA with this project's small local completion-only Qwen2-1.5B setup —
+  see the comment at the top of `search_metrics.py` for why).
+* **p99_latency_ms** — worst-case latency, acceptable for an MVP with LLM reranking.
 
-* **~1.3s worst-case latency**
-  Acceptable for an MVP with LLM reranking.
+---
 
-* **Low zero-result rate (9.3%)**
-  Hybrid retrieval avoids empty searches even with missing data.
+## Inspecting the Qdrant Vector Store
+
+Qdrant runs in **embedded/local mode** (no server) at `data/embeddings/qdrant/`. There's no
+web UI for local mode, but you can open it directly from Python:
+
+```python
+from qdrant_client import QdrantClient
+
+client = QdrantClient(path="data/embeddings/qdrant")
+print(client.get_collection("products"))  # vector size, distance metric, point count
+
+# Look at a few points: id, 768-dim embedding vector, and full metadata payload
+points, _ = client.scroll("products", limit=3, with_payload=True, with_vectors=True)
+for p in points:
+    print(p.id, p.payload["variant_id"], p.payload["product_name"], len(p.vector))
+```
+
+Under the hood, local-mode Qdrant stores everything in a single SQLite file at
+`data/embeddings/qdrant/collection/products/storage.sqlite`, one table `points(id, point)`
+where `point` is a **pickled `PointStruct`** (id + vector + payload). You can decode a raw
+row directly without going through `qdrant_client` if you just want to peek:
+
+```python
+import sqlite3, pickle
+
+conn = sqlite3.connect("data/embeddings/qdrant/collection/products/storage.sqlite")
+row = conn.execute("SELECT point FROM points LIMIT 1").fetchone()
+point = pickle.loads(row[0])
+print(point.payload)          # variant_id, product_name, category, country, price_level, price, text
+print(point.vector[:5])       # first 5 dims of the 768-dim embedding
+```
 
 ---
 
@@ -182,13 +221,10 @@ agentic-ecommerce-search/
 │   └── llm_client.py
 │
 ├── results/                   # Evaluation outputs
-│   ├── eval_queries.txt
-│   ├── success_cases.txt
-│   ├── failure_cases.txt
-│   └── metrics.json
+│   └── metrics.json            # latency + RAGAS scores (see search_metrics.py)
 │
 ├── search_orchestration.py    # End-to-end search pipeline
-├── search_metrics.py          # Evaluation metrics
+├── search_metrics.py          # RAGAS-based evaluation
 ├── build_pipeline.py          # Runner for embedding pipeline
 │
 ├── docker-compose.yml         # GPU-enabled Docker setup
@@ -201,6 +237,8 @@ agentic-ecommerce-search/
 
 ## How to Run
 
+### Option A: Docker
+
 The system runs inside a **GPU-enabled Docker container**.
 
 ```bash
@@ -208,11 +246,61 @@ docker compose build
 docker compose up
 ```
 
-Once running, access the API at:
+Once running, access the API at `http://127.0.0.1:8000/docs`.
 
+### Option B: Local venv
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
 ```
-http://127.0.0.1:8000/docs
+
+If your GPU driver is older than what the default PyTorch wheel expects (a
+`RuntimeError: The NVIDIA driver on your system is too old` at startup), install a
+matching CUDA build instead, e.g. for CUDA 12.x drivers:
+
+```bash
+pip install "torch==2.4.0" --index-url https://download.pytorch.org/whl/cu121
 ```
+
+**Run the API:**
+
+```bash
+uvicorn api:app --reload --port 8000
+```
+
+**Test it (a good example query):**
+
+```bash
+curl -X POST http://127.0.0.1:8000/search \
+  -H "Content-Type: application/json" \
+  -d '{"query": "cheap laptop"}' | python3 -m json.tool
+```
+
+This returns 10 correctly-filtered `Low` price-tier Laptop results, ranked by semantic
+score — a good sanity check that retrieval, price-intent parsing, and reranking are all
+working together. (A query like `"cheap laptop in France"` will legitimately return an
+empty list — this dataset has no Laptop stocked in France, not a bug; see
+`data/embeddings/metadata.sqlite`'s `chunks` table to check what's available per country.)
+
+Health/readiness checks: `curl http://127.0.0.1:8000/health` and `.../ready`.
+
+**Run the evaluation (the project's test suite):**
+
+```bash
+python3 search_metrics.py
+```
+
+Writes `results/metrics.json` (see [Evaluation Results](#evaluation-results)). Note: this
+loads its own copy of the embedding + LLM models onto the GPU, so stop the API server
+first if you're on a memory-constrained GPU (an 8GB card can't hold both).
+
+The sample size and number of retrieved contexts scored per query are capped in
+`search_metrics.py` (`DEFAULT_SAMPLE_SIZE`, `MAX_CONTEXTS_PER_SAMPLE`) since RAGAS's
+faithfulness/context-precision metrics make one LLM generation call per context — increase
+them for a more statistically meaningful run at the cost of runtime (roughly linear in
+`sample_size * contexts_per_sample`).
 
 ---
 
