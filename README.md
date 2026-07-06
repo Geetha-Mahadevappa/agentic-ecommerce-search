@@ -102,6 +102,9 @@ A small set of Python agents work together to answer each query:
 
 This layered approach stabilizes search even when data is incomplete.
 
+<img width="797" height="256" alt="Screenshot from 2026-07-06 22-39-09" src="https://github.com/user-attachments/assets/bcde04a5-d2e8-44a0-9ffb-fc0921b6783e" />
+
+
 ---
 
 ### Memory-Aware Search
