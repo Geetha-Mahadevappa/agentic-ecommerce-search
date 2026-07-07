@@ -88,17 +88,29 @@ This step:
 
 A small set of Python agents work together to answer each query:
 
+```mermaid
+flowchart LR
+    A(Query) --> B(Query Understanding)
+    B --> C(Hybrid Retrieval<br/>Qdrant + BM25)
+    C --> D(LLM Reranker)
+    D --> E(Response)
+    B -.-> M[(Memory Agent)]
+    D -.-> M
+```
+
 - **Query Understanding Agent**  
   Extracts product type, country, and price intent from the query.
 
 - **Hybrid Retrieval Agent**  
-  Uses semantic search in Qdrant orchestrated through LangChain to find candidates.
+  Combines semantic search in Qdrant with BM25 keyword search, orchestrated
+  through LangChain (`BM25Retriever` + `EnsembleRetriever`) to find candidates.
 
 - **Reranker Agent**  
   Uses an LLM to score and reorder results for relevance.
 
 - **Memory Agent**  
-  Remembers things like country or price preference across queries.
+  Remembers things like country or price preference across queries, scoped
+  per user (see [Memory-Aware Search](#memory-aware-search) below).
 
 This layered approach stabilizes search even when data is incomplete.
 
@@ -114,6 +126,18 @@ This allows follow-up queries like:
 > “show me cheaper ones”
 
 without needing to restate all constraints.
+
+Memory is scoped per caller via an optional `user_id` on the `/search` request:
+
+```bash
+curl -X POST http://127.0.0.1:8000/search \
+  -H "Content-Type: application/json" \
+  -d '{"query": "premium camera", "user_id": "alice"}'
+```
+
+Each `user_id` gets its own preference/history files under `data/memory/users/{user_id}/`,
+so one caller's preferences never leak into another's. Omitting `user_id` falls back to
+a single shared memory (useful for quick local testing, matching the original behavior).
 
 ---
 
