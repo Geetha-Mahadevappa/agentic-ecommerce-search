@@ -8,6 +8,7 @@ model loading and keeps latency predictable.
 """
 
 import logging
+from typing import Optional
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 
@@ -28,6 +29,7 @@ pipeline_ready = False
 class SearchRequest(BaseModel):
     """Request body for the /search endpoint."""
     query: str
+    user_id: Optional[str] = None
 
 
 @app.on_event("startup")
@@ -62,7 +64,7 @@ def search(request: SearchRequest):
         raise HTTPException(status_code=503, detail="Pipeline not ready")
 
     try:
-        result = run_search(pipeline, request.query)
+        result = run_search(pipeline, request.query, request.user_id)
 
         # Handle empty results cleanly
         if not result.get("results"):
