@@ -43,6 +43,7 @@ class MemoryAgent:
     activity_log_path: Path
     user_infer_path: Path
     short_term_limit: int = 5
+    user_id: str = "default"
 
     short_term_history: List[Dict[str, Any]] = field(default_factory=list)
     procedural_memory: Dict[str, Any] = field(default_factory=dict)
@@ -63,6 +64,7 @@ class MemoryAgent:
         if not self.user_prefs_path.exists():
             logger.info(f"Creating user preferences file: {self.user_prefs_path}")
             self._safe_write_json(self.user_prefs_path, {
+                "user_id": self.user_id,
                 "preferred_categories": [],
                 "price_sensitivity": None,
                 "preferred_country": None
@@ -72,6 +74,7 @@ class MemoryAgent:
         if not self.user_infer_path.exists():
             logger.info(f"Creating inferred memory file: {self.user_infer_path}")
             self._safe_write_json(self.user_infer_path, {
+                "user_id": self.user_id,
                 "preferred_country": None,
                 "inferred_country": None,
                 "candidate_countries": []
