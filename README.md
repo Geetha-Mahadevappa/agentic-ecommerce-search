@@ -102,9 +102,6 @@ A small set of Python agents work together to answer each query:
 
 This layered approach stabilizes search even when data is incomplete.
 
-<img width="797" height="256" alt="Screenshot from 2026-07-06 22-39-09" src="https://github.com/user-attachments/assets/bcde04a5-d2e8-44a0-9ffb-fc0921b6783e" />
-
-
 ---
 
 ### Memory-Aware Search
@@ -129,6 +126,7 @@ through the full pipeline and scores the results with **RAGAS**:
 {
   "p99_latency_ms": 908.05,
   "faithfulness": 1.0,
+  "llm_context_precision_without_reference": 0.0,
   "semantic_similarity": 0.60
 }
 ```
@@ -140,8 +138,12 @@ with a larger sample.)
 
 * **faithfulness** — is the surfaced answer grounded in the retrieved product text (no
   hallucinated details)?
+* **llm_context_precision_without_reference** — are the contexts Qdrant retrieved actually
+  relevant to the query?
 * **semantic_similarity** — used here as an *answer relevance* proxy: how closely does the
-  surfaced answer align with the query itself.
+  surfaced answer align with the query itself (RAGAS's own `ResponseRelevancy` metric
+  reliably crashes CUDA with this project's small local completion-only Qwen2-1.5B setup —
+  see the comment at the top of `search_metrics.py` for why).
 * **p99_latency_ms** — worst-case latency, acceptable for an MVP with LLM reranking.
 
 ---
