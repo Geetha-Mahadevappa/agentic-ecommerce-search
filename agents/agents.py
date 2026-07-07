@@ -4,6 +4,7 @@ Agents for the multi‑agent search pipeline.
 Each agent handles one focused step in the workflow.
 """
 
+import re
 from dataclasses import dataclass
 from typing import List, Dict, Any, Optional
 
@@ -12,11 +13,18 @@ from qdrant_client import QdrantClient
 from qdrant_client.models import Filter, FieldCondition, MatchAny
 from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_core.runnables import RunnableLambda
+from rank_bm25 import BM25Okapi
 
 import logging
 import pandas as pd
 from sentence_transformers import SentenceTransformer
 from sqlalchemy import text, bindparam
+
+_TOKEN_RE = re.compile(r"[a-z0-9]+")
+
+
+def _tokenize(text_: str) -> List[str]:
+    return _TOKEN_RE.findall(text_.lower())
 
 from logging_config import setup_logging
 setup_logging("logs/agent_runtime.log")
@@ -218,12 +226,15 @@ class QueryUnderstandingAgent:
         }
 
 
-# Vector retrieval (Qdrant + LangChain)
+# Hybrid retrieval: Qdrant vector search + BM25 keyword search (LangChain-orchestrated embeddings)
 @dataclass
 class QdrantRetrievalAgent:
     """
-    Semantic retrieval using Qdrant as the vector backend and LangChain
-    for vector-store orchestration.
+    Hybrid retrieval: semantic search via Qdrant (LangChain HuggingFaceEmbeddings)
+    fused with a BM25 keyword search over the same product text, combined by
+    Reciprocal Rank Fusion so the two incompatible score scales (cosine
+    similarity vs. unbounded BM25) never need to be normalized against
+    each other directly.
     """
 
     model_name: str
@@ -243,6 +254,11 @@ class QdrantRetrievalAgent:
 
         self.metadata["variant_id"] = self.metadata["variant_id"].astype(str).str.strip()
         self.metadata = self.metadata.set_index("variant_id", drop=False)
+
+        logger.info("Building BM25 keyword index over %d product texts", len(self.metadata))
+        self._bm25_ids = list(self.metadata.index)
+        tokenized_corpus = [_tokenize(str(t)) for t in self.metadata["text"]]
+        self._bm25 = BM25Okapi(tokenized_corpus)
 
     def _make_filter(self, allowed_ids: set[str] | None) -> Filter | None:
         if not allowed_ids:
@@ -278,6 +294,40 @@ class QdrantRetrievalAgent:
         logger.info("Qdrant returned %d candidates", len(out))
         return out
 
+    def _bm25_search(self, query: str, allowed_ids: set[str] | None = None) -> List[Dict[str, Any]]:
+        scores = self._bm25.get_scores(_tokenize(query))
+        ranked = sorted(zip(self._bm25_ids, scores), key=lambda x: x[1], reverse=True)
+
+        out: List[Dict[str, Any]] = []
+        for variant_id, score in ranked:
+            if score <= 0:
+                break
+            if allowed_ids and variant_id not in allowed_ids:
+                continue
+            out.append({"variant_id": variant_id, "score": float(score)})
+            if len(out) >= self.top_k:
+                break
+
+        logger.info("BM25 returned %d candidates", len(out))
+        return out
+
+    def _fuse_rankings(
+        self,
+        vector_hits: List[Dict[str, Any]],
+        keyword_hits: List[Dict[str, Any]],
+        rrf_k: int = 60,
+    ) -> List[Dict[str, Any]]:
+        """Reciprocal Rank Fusion: combine two rankings by rank position, not raw score."""
+        fused: Dict[str, float] = {}
+
+        for rank, item in enumerate(vector_hits):
+            fused[item["variant_id"]] = fused.get(item["variant_id"], 0.0) + 1.0 / (rrf_k + rank + 1)
+
+        for rank, item in enumerate(keyword_hits):
+            fused[item["variant_id"]] = fused.get(item["variant_id"], 0.0) + 1.0 / (rrf_k + rank + 1)
+
+        return [{"variant_id": vid, "score": score} for vid, score in fused.items()]
+
     def run(self, query_info: Dict[str, Any], allowed_ids: set[str] | None = None) -> List[Dict[str, Any]]:
         query = query_info["clean_query"]
         product_type = query_info.get("product_type")
@@ -286,7 +336,9 @@ class QdrantRetrievalAgent:
             lambda inp: self._semantic_search(inp["query"], inp.get("allowed_ids"))
         )
 
-        merged = retrieval_chain.invoke({"query": query, "allowed_ids": allowed_ids})
+        vector_hits = retrieval_chain.invoke({"query": query, "allowed_ids": allowed_ids})
+        keyword_hits = self._bm25_search(query, allowed_ids)
+        merged = self._fuse_rankings(vector_hits, keyword_hits)
 
         if product_type:
             pt_tokens = product_type.lower().split()
