@@ -12,8 +12,10 @@ import numpy as np
 from qdrant_client import QdrantClient
 from qdrant_client.models import Filter, FieldCondition, MatchAny
 from langchain_huggingface import HuggingFaceEmbeddings
-from langchain_core.runnables import RunnableLambda
-from rank_bm25 import BM25Okapi
+from langchain_core.retrievers import BaseRetriever
+from langchain_core.documents import Document
+from langchain_community.retrievers import BM25Retriever
+from langchain.retrievers import EnsembleRetriever
 
 import logging
 import pandas as pd
@@ -25,6 +27,19 @@ _TOKEN_RE = re.compile(r"[a-z0-9]+")
 
 def _tokenize(text_: str) -> List[str]:
     return _TOKEN_RE.findall(text_.lower())
+
+
+class _CallableRetriever(BaseRetriever):
+    """Wraps a plain variant-id/score search function as a LangChain retriever."""
+
+    search_fn: Any
+
+    def _get_relevant_documents(self, query: str, *, run_manager=None) -> List[Document]:
+        hits = self.search_fn(query)
+        return [
+            Document(page_content=h["variant_id"], metadata={"variant_id": h["variant_id"]})
+            for h in hits
+        ]
 
 from logging_config import setup_logging
 setup_logging("logs/agent_runtime.log")
@@ -42,7 +57,6 @@ class QueryUnderstandingAgent:
     procedural_memory: Dict[str, Any]
     embedding_model: SentenceTransformer
     keyword_processor: Any
-    memory_agent: Any
     product_types: List[str] = None
     product_type_index: Any = None
     countries: List[str] = None
@@ -181,7 +195,7 @@ class QueryUnderstandingAgent:
                 return c
         return None
 
-    def run(self, raw_query: str) -> Dict[str, Any]:
+    def run(self, raw_query: str, memory_agent: Any) -> Dict[str, Any]:
         logger.info(f"Running QueryUnderstandingAgent on query: {raw_query}")
 
         cleaned = self._normalize(raw_query)
@@ -194,14 +208,14 @@ class QueryUnderstandingAgent:
 
         # If user did not specify price intent, fall back to memory
         if not has_price_constraint:
-            inferred_data = self.memory_agent.get_inferred()
+            inferred_data = memory_agent.get_inferred()
             mem_price = inferred_data.get("price_sensitivity")
             if mem_price:
                 price_level = mem_price
 
         # If user did not specify a country, fall back to inferred/preferred/candidate
         if country is None:
-            inferred_data = self.memory_agent.get_inferred()
+            inferred_data = memory_agent.get_inferred()
             fallback = (
                 inferred_data.get("preferred_country")
                 or inferred_data.get("inferred_country")
@@ -230,11 +244,11 @@ class QueryUnderstandingAgent:
 @dataclass
 class QdrantRetrievalAgent:
     """
-    Hybrid retrieval: semantic search via Qdrant (LangChain HuggingFaceEmbeddings)
-    fused with a BM25 keyword search over the same product text, combined by
-    Reciprocal Rank Fusion so the two incompatible score scales (cosine
-    similarity vs. unbounded BM25) never need to be normalized against
-    each other directly.
+    Hybrid retrieval, orchestrated through LangChain: semantic search via Qdrant
+    (LangChain HuggingFaceEmbeddings) and a LangChain BM25Retriever over the same
+    product text, combined by LangChain's EnsembleRetriever (Reciprocal Rank
+    Fusion), so the two incompatible score scales never need to be normalized
+    against each other directly.
     """
 
     model_name: str
@@ -256,9 +270,15 @@ class QdrantRetrievalAgent:
         self.metadata = self.metadata.set_index("variant_id", drop=False)
 
         logger.info("Building BM25 keyword index over %d product texts", len(self.metadata))
-        self._bm25_ids = list(self.metadata.index)
-        tokenized_corpus = [_tokenize(str(t)) for t in self.metadata["text"]]
-        self._bm25 = BM25Okapi(tokenized_corpus)
+        self._bm25_retriever = BM25Retriever.from_texts(
+            texts=[str(t) for t in self.metadata["text"]],
+            metadatas=[{"variant_id": vid} for vid in self.metadata.index],
+            preprocess_func=_tokenize,
+        )
+        # Rank the full corpus rather than truncating to top_k up front, so a
+        # country/price hard filter applied after fusion can't starve the
+        # keyword side of candidates that were merely outside its raw top-k.
+        self._bm25_retriever.k = len(self.metadata)
 
     def _make_filter(self, allowed_ids: set[str] | None) -> Filter | None:
         if not allowed_ids:
@@ -294,51 +314,31 @@ class QdrantRetrievalAgent:
         logger.info("Qdrant returned %d candidates", len(out))
         return out
 
-    def _bm25_search(self, query: str, allowed_ids: set[str] | None = None) -> List[Dict[str, Any]]:
-        scores = self._bm25.get_scores(_tokenize(query))
-        ranked = sorted(zip(self._bm25_ids, scores), key=lambda x: x[1], reverse=True)
-
-        out: List[Dict[str, Any]] = []
-        for variant_id, score in ranked:
-            if score <= 0:
-                break
-            if allowed_ids and variant_id not in allowed_ids:
-                continue
-            out.append({"variant_id": variant_id, "score": float(score)})
-            if len(out) >= self.top_k:
-                break
-
-        logger.info("BM25 returned %d candidates", len(out))
-        return out
-
-    def _fuse_rankings(
-        self,
-        vector_hits: List[Dict[str, Any]],
-        keyword_hits: List[Dict[str, Any]],
-        rrf_k: int = 60,
-    ) -> List[Dict[str, Any]]:
-        """Reciprocal Rank Fusion: combine two rankings by rank position, not raw score."""
-        fused: Dict[str, float] = {}
-
-        for rank, item in enumerate(vector_hits):
-            fused[item["variant_id"]] = fused.get(item["variant_id"], 0.0) + 1.0 / (rrf_k + rank + 1)
-
-        for rank, item in enumerate(keyword_hits):
-            fused[item["variant_id"]] = fused.get(item["variant_id"], 0.0) + 1.0 / (rrf_k + rank + 1)
-
-        return [{"variant_id": vid, "score": score} for vid, score in fused.items()]
-
     def run(self, query_info: Dict[str, Any], allowed_ids: set[str] | None = None) -> List[Dict[str, Any]]:
         query = query_info["clean_query"]
         product_type = query_info.get("product_type")
 
-        retrieval_chain = RunnableLambda(
-            lambda inp: self._semantic_search(inp["query"], inp.get("allowed_ids"))
+        vector_retriever = _CallableRetriever(
+            search_fn=lambda q: self._semantic_search(q, allowed_ids)
         )
+        ensemble = EnsembleRetriever(
+            retrievers=[vector_retriever, self._bm25_retriever],
+            weights=[0.5, 0.5],
+        )
+        docs = ensemble.invoke(query)
+        logger.info("EnsembleRetriever (Qdrant + BM25) returned %d fused candidates", len(docs))
 
-        vector_hits = retrieval_chain.invoke({"query": query, "allowed_ids": allowed_ids})
-        keyword_hits = self._bm25_search(query, allowed_ids)
-        merged = self._fuse_rankings(vector_hits, keyword_hits)
+        merged: List[Dict[str, Any]] = []
+        for rank, doc in enumerate(docs):
+            variant_id = doc.metadata.get("variant_id")
+            if not variant_id:
+                continue
+            if allowed_ids and variant_id not in allowed_ids:
+                continue
+            # Ensemble docs come back already fused/ranked; a monotonic
+            # rank-based score preserves that order for the reranker's
+            # score-cutoff and price-tier boost logic downstream.
+            merged.append({"variant_id": variant_id, "score": 1.0 / (rank + 1)})
 
         if product_type:
             pt_tokens = product_type.lower().split()
@@ -372,7 +372,6 @@ class RerankerAgent:
     """
 
     engine: Any
-    memory_agent: Any
     llm_client: Any
     final_top_k: int = 10
     score_cutoff_ratio: float = 0.50   # NEW: configurable score cutoff
@@ -505,7 +504,12 @@ class RerankerAgent:
 
         return items
 
-    def run(self, query_info: Dict[str, Any], candidates: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    def run(
+        self,
+        query_info: Dict[str, Any],
+        candidates: List[Dict[str, Any]],
+        memory_agent: Any,
+    ) -> List[Dict[str, Any]]:
         logger.info(
             f"Running RerankerAgent for query '{query_info['raw_query']}' "
             f"with {len(candidates)} candidates."
@@ -525,7 +529,7 @@ class RerankerAgent:
 
         # Fallback to memory only if query is silent
         if not price_level:
-            inferred = self.memory_agent.get_inferred()
+            inferred = memory_agent.get_inferred()
             price_level = inferred.get("price_level") or inferred.get("price_sensitivity")
 
         # Hard filtering
