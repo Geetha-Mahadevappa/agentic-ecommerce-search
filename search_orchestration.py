@@ -7,8 +7,8 @@ a run_search(...) function that executes the full workflow.
 """
 
 from pathlib import Path
-from dataclasses import dataclass
-from typing import Dict, Any, List
+from dataclasses import dataclass, field
+from typing import Dict, Any, List, Optional
 
 import yaml
 import logging
@@ -103,6 +103,32 @@ class SearchPipeline:
     query_agent: QueryUnderstandingAgent
     retrieval_agent: QdrantRetrievalAgent
     reranker: RerankerAgent
+    _user_memory_agents: Dict[str, MemoryAgent] = field(default_factory=dict)
+
+    def get_memory_agent(self, user_id: Optional[str]) -> MemoryAgent:
+        """
+        Resolve the MemoryAgent for a given user. No user_id (or "default")
+        keeps today's behavior exactly - the single shared instance built at
+        startup. Any other user_id gets its own lazily-created, file-isolated
+        MemoryAgent under data/memory/users/{user_id}/, so preferences and
+        activity from one caller never leak into another's.
+        """
+        if not user_id or user_id == "default":
+            return self.memory_agent
+
+        if user_id not in self._user_memory_agents:
+            base_dir = Path(self.config.paths.memory_dir) / "users" / user_id
+            self._user_memory_agents[user_id] = MemoryAgent(
+                memory_dir=base_dir,
+                user_prefs_path=base_dir / "user_prefs.json",
+                user_infer_path=base_dir / "user_infer.json",
+                procedural_memory_path=Path(self.config.paths.procedural_memory_yaml),
+                activity_log_path=base_dir / "activity_log.json",
+                short_term_limit=self.config.search.short_term_history,
+                user_id=user_id,
+            )
+
+        return self._user_memory_agents[user_id]
 
 
 def build_search_pipeline(config_path: str = "configs/config_agents.yaml",) -> SearchPipeline:
@@ -175,7 +201,6 @@ def build_search_pipeline(config_path: str = "configs/config_agents.yaml",) -> S
         procedural_memory=memory_agent.procedural_memory,
         embedding_model=embedding_model,
         keyword_processor=keyword_processor,
-        memory_agent=memory_agent,
         product_types=product_types,
         product_type_index=pt_index,
         countries=countries
@@ -194,7 +219,6 @@ def build_search_pipeline(config_path: str = "configs/config_agents.yaml",) -> S
 
     reranker = RerankerAgent(
         engine=db_engine,
-        memory_agent=memory_agent,
         llm_client=llm_client,
         final_top_k=config.search.final_top_k,
     )
@@ -209,25 +233,30 @@ def build_search_pipeline(config_path: str = "configs/config_agents.yaml",) -> S
     )
 
 # Public search entrypoint
-def run_search(pipeline: SearchPipeline, raw_query: str) -> Dict[str, Any]:
+def run_search(pipeline: SearchPipeline, raw_query: str, user_id: Optional[str] = None) -> Dict[str, Any]:
     """
     End-to-end search orchestration. Handles query parsing, memory updates,
     country and price filtering, hybrid retrieval, and final reranking.
+
+    user_id scopes memory (preferences, inferred country, short-term history,
+    activity log) to a single caller. Omitting it preserves the original
+    single-shared-memory behavior.
     """
+    memory_agent = pipeline.get_memory_agent(user_id)
 
     # Query Understanding
     logger.info(f"Received query: {raw_query}")
-    q = pipeline.query_agent.run(raw_query)
+    q = pipeline.query_agent.run(raw_query, memory_agent)
     clean_query = q["clean_query"]
 
     # Update long-term preferences (categories, price sensitivity)
-    pipeline.memory_agent.update_preferences_from_query(clean_query, q["product_type"])
+    memory_agent.update_preferences_from_query(clean_query, q["product_type"])
 
     # Update inferred country memory
     country = q.get("country")
     if country:
-        pipeline.memory_agent.update_inferred({"inferred_country": country})
-        pipeline.memory_agent.add_candidate_country(country)
+        memory_agent.update_inferred({"inferred_country": country})
+        memory_agent.add_candidate_country(country)
 
     # Build allowed_ids (Hard Filters)
     allowed_ids = None
@@ -254,12 +283,12 @@ def run_search(pipeline: SearchPipeline, raw_query: str) -> Dict[str, Any]:
     candidates = pipeline.retrieval_agent.run(q, allowed_ids=allowed_ids)
 
     # Pass full query_info so reranker can use price_level intent
-    final_results = pipeline.reranker.run(q, candidates)
+    final_results = pipeline.reranker.run(q, candidates, memory_agent)
     final_results.sort(key=lambda x: x["score"], reverse=True)
 
     # Memory Updates
-    pipeline.memory_agent.add_short_term(clean_query, final_results)
-    pipeline.memory_agent.log_activity(clean_query, [r["variant_id"] for r in final_results])
+    memory_agent.add_short_term(clean_query, final_results)
+    memory_agent.log_activity(clean_query, [r["variant_id"] for r in final_results])
     logger.info(f"Returning {len(final_results)} final results")
 
     return {
