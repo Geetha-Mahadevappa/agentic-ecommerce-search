@@ -88,15 +88,8 @@ This step:
 
 A small set of Python agents work together to answer each query:
 
-```mermaid
-flowchart LR
-    A(Query) --> B(Query Understanding)
-    B --> C(Hybrid Retrieval<br/>Qdrant + BM25)
-    C --> D(LLM Reranker)
-    D --> E(Response)
-    B -.-> M[(Memory Agent)]
-    D -.-> M
-```
+<img width="802" height="296" alt="Screenshot from 2026-07-07 07-16-42" src="https://github.com/user-attachments/assets/840e9614-bbd5-45b9-bef9-612125d89bb7" />
+
 
 - **Query Understanding Agent**  
   Extracts product type, country, and price intent from the query.
