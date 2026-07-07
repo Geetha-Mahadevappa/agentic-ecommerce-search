@@ -12,6 +12,7 @@ accelerate==0.33.0
 filelock==3.16.0
 requests==2.31.0
 flashtext2
+rank_bm25==0.2.2
 uvicorn
 fastapi
 qdrant-client==1.14.2
